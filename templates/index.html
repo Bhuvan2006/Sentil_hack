@@ -41,7 +41,7 @@
       <nav class="topbar-nav">
         <button class="nav-tab active" id="nav-map" onclick="showPanel('map')">Map</button>
         <button class="nav-tab" id="nav-weather" onclick="showPanel('weather')">Weather</button>
-        <button class="nav-tab" id="nav-about" onclick="showPanel('about')">About</button>
+        <button class="nav-tab" id="nav-game" onclick="showPanel('game')">Game</button>
       </nav>
     </div>
 
@@ -170,44 +170,23 @@
     </div>
   </div>
 
-  <div class="full-panel-backdrop hidden" id="about-panel">
-    <div class="full-panel">
-      <div class="full-panel-header">
-        <h2 class="full-panel-title">How It Works</h2>
+  <!-- ── GAME PANEL ── -->
+  <div class="full-panel-backdrop hidden" id="game-panel">
+    <div class="game-panel-inner">
+      <div class="game-panel-topbar">
+        <div class="game-panel-brand">
+          <span class="game-panel-title">Flood Awareness Game</span>
+          <span class="game-panel-sub">Navigate the flood — make smart decisions</span>
+        </div>
         <button class="panel-close-btn" onclick="showPanel('map')">Back to Map</button>
       </div>
-      <div class="about-grid">
-        <div class="about-card">
-          <div class="about-tag">Data</div>
-          <h3>Live Rain Data</h3>
-          <p>Fetches real-time precipitation from <strong>Open-Meteo API</strong> — no API key needed. Hourly rain intensity powers the flood risk score.</p>
-        </div>
-        <div class="about-card">
-          <div class="about-tag">Map</div>
-          <h3>City Road Network</h3>
-          <p>Downloads the full driveable street graph from <strong>OpenStreetMap</strong> using OSMnx. Graphs are cached locally for fast reload.</p>
-        </div>
-        <div class="about-card">
-          <div class="about-tag">AI</div>
-          <h3>Flood Risk Model</h3>
-          <p>A <strong>Gradient Boosting</strong> classifier assigns each road segment a 0–4 flood risk class using elevation, road type, proximity to water, and rainfall intensity.</p>
-        </div>
-        <div class="about-card">
-          <div class="about-tag">Routing</div>
-          <h3>Dijkstra Algorithm</h3>
-          <p>Routes avoid flooded roads using <strong>Dijkstra's algorithm</strong> on a graph where high-risk roads have exponentially heavier weights. Critical roads are fully blocked.</p>
-        </div>
-        <div class="about-card">
-          <div class="about-tag">API</div>
-          <h3>Flask REST API</h3>
-          <p>Flask backend exposes endpoints for city loading, weather data, road network GeoJSON, and route computation — consumed by this Leaflet.js frontend.</p>
-        </div>
-        <div class="about-card">
-          <div class="about-tag">Safety</div>
-          <h3>Risk Alerts</h3>
-          <p>Compares flood-aware route vs normal shortest path. Shows risk distribution across road segments and issues alerts for dangerous conditions.</p>
-        </div>
-      </div>
+      <iframe
+        id="game-frame"
+        src="/game/"
+        class="game-iframe"
+        title="Flood Awareness Exploration Game"
+        allowfullscreen
+      ></iframe>
     </div>
   </div>
 

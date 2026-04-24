@@ -138,6 +138,12 @@ def static_files(path):
     return send_from_directory("static", path)
 
 
+@app.route("/game/")
+@app.route("/game/<path:path>")
+def game_files(path="index.html"):
+    return send_from_directory("game", path)
+
+
 @app.route("/api/status")
 def api_status():
     with _lock:
