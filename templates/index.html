@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FloodNav — Flood-Aware Navigation System</title>
+  <meta name="description" content="Real-time flood-aware navigation system. Get the safest route by avoiding flooded roads using live weather data and AI flood risk prediction." />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+
+<body>
+  <!-- ══════════════════ HEADER ══════════════════ -->
+  <header class="header" id="main-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 3C10 3 4 9 4 17c0 9.5 14 20 14 20s14-10.5 14-20c0-8-6-14-14-14z" fill="url(#grad1)"/>
+            <path d="M12 22 Q15 17 18 22 Q21 27 24 22" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+            <path d="M10 18 Q13 13 16 18 Q19 23 22 18 Q25 13 28 18" stroke="rgba(255,255,255,0.6)" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+            <defs>
+              <linearGradient id="grad1" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#00bfff"/>
+                <stop offset="100%" stop-color="#0044ff"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-name">FloodNav</h1>
+          <p class="brand-sub">Flood-Aware Navigation</p>
+        </div>
+      </div>
+
+      <div class="header-status" id="system-status">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">Initializing…</span>
+      </div>
+
+      <nav class="header-nav">
+        <button class="nav-btn active" id="nav-map" onclick="showPanel('map')">Map</button>
+        <button class="nav-btn" id="nav-weather" onclick="showPanel('weather')">Weather</button>
+        <button class="nav-btn" id="nav-about" onclick="showPanel('about')">About</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ══════════════════ MAIN LAYOUT ══════════════════ -->
+  <div class="app-container">
+
+    <!-- ── LEFT PANEL ── -->
+    <aside class="sidebar" id="sidebar">
+
+      <!-- City Selector -->
+      <section class="card card-city">
+        <div class="card-header">
+          <div class="card-title-bar">
+            <span class="card-label">Select City</span>
+          </div>
+        </div>
+        <select id="city-select" class="select-input">
+          <option value="">-- Choose a city --</option>
+        </select>
+        <button id="load-city-btn" class="btn btn-primary" onclick="loadCity()">
+          Load City Map
+        </button>
+        <div id="load-progress" class="progress-wrap hidden">
+          <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+          <span class="progress-label" id="progress-label">Loading…</span>
+        </div>
+      </section>
+
+      <!-- Weather Panel -->
+      <section class="card card-weather" id="weather-card">
+        <div class="card-header">
+          <div class="card-title-bar">
+            <span class="card-label">Live Weather</span>
+          </div>
+        </div>
+        <div id="weather-content">
+          <div class="placeholder-text">Load a city to see live weather data</div>
+        </div>
+      </section>
+
+      <!-- Route Planner -->
+      <section class="card card-route">
+        <div class="card-header">
+          <div class="card-title-bar">
+            <span class="card-label">Route Planner</span>
+          </div>
+        </div>
+        <div class="route-hint">Click on the map to set Origin then Destination</div>
+        <div class="coord-row" id="origin-display">
+          <span class="coord-label coord-label--origin">Origin</span>
+          <span class="coord-val" id="origin-label">Not set</span>
+        </div>
+        <div class="coord-row" id="dest-display">
+          <span class="coord-label coord-label--dest">Destination</span>
+          <span class="coord-val" id="dest-label">Not set</span>
+        </div>
+        <div class="route-btns">
+          <button id="find-route-btn" class="btn btn-success" onclick="findRoute()" disabled>
+            Find Safe Route
+          </button>
+          <button class="btn btn-ghost" onclick="clearRoute()">Clear</button>
+        </div>
+        <!-- Route result summary -->
+        <div id="route-result" class="hidden"></div>
+      </section>
+
+      <!-- Legend -->
+      <section class="card card-legend">
+        <div class="card-header">
+          <div class="card-title-bar">
+            <span class="card-label">Risk Legend</span>
+          </div>
+        </div>
+        <div class="legend-grid">
+          <div class="legend-item"><div class="legend-dot" style="background:#00E5FF"></div><span>Safe</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#76FF03"></div><span>Low Risk</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#FFD600"></div><span>Moderate</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#FF6D00"></div><span>High Risk</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#FF1744"></div><span>Critical</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#00FF88"></div><span>Safe Route</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:#888888"></div><span>Normal Route</span></div>
+        </div>
+      </section>
+    </aside>
+
+    <!-- ── MAP AREA ── -->
+    <main class="map-container" id="map-panel">
+      <div id="map"></div>
+
+      <!-- Floating info chips -->
+      <div class="map-chips">
+        <div class="chip" id="chip-city">No city loaded</div>
+        <div class="chip chip-risk hidden" id="chip-risk">Risk: —</div>
+      </div>
+
+      <!-- Tooltip -->
+      <div class="map-tooltip hidden" id="map-tooltip"></div>
+
+      <!-- Loading overlay -->
+      <div class="map-overlay hidden" id="map-overlay">
+        <div class="spinner"></div>
+        <p id="overlay-msg">Loading city map…</p>
+        <div class="overlay-progress">
+          <div class="overlay-bar" id="overlay-bar"></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ── WEATHER PANEL ── -->
+    <section class="panel hidden" id="weather-panel">
+      <h2 class="panel-title">Weather &amp; Flood Risk</h2>
+      <div id="weather-panel-content">
+        <div class="placeholder-text large">Load a city first to see weather data.</div>
+      </div>
+    </section>
+
+    <!-- ── ABOUT PANEL ── -->
+    <section class="panel hidden" id="about-panel">
+      <h2 class="panel-title">How It Works</h2>
+      <div class="about-grid">
+        <div class="about-card">
+          <div class="about-label">Live Rain Data</div>
+          <h3>Open-Meteo API</h3>
+          <p>Fetches real-time precipitation — no API key needed. Hourly rain intensity powers the flood risk score.</p>
+        </div>
+        <div class="about-card">
+          <div class="about-label">City Road Network</div>
+          <h3>OpenStreetMap</h3>
+          <p>Downloads the full driveable street graph using <strong>OSMnx</strong>. Graphs are cached locally for fast reload.</p>
+        </div>
+        <div class="about-card">
+          <div class="about-label">AI Flood Model</div>
+          <h3>Gradient Boosting</h3>
+          <p>A <strong>Gradient Boosting</strong> classifier assigns each road segment a 0-4 flood risk class using elevation, road type, proximity to water, and rainfall intensity.</p>
+        </div>
+        <div class="about-card">
+          <div class="about-label">Smart Routing</div>
+          <h3>Dijkstra Algorithm</h3>
+          <p>Routes via <strong>Dijkstra's algorithm</strong> on a weighted graph where flooded roads carry exponentially higher penalties. Critical roads are fully blocked.</p>
+        </div>
+        <div class="about-card">
+          <div class="about-label">Backend</div>
+          <h3>REST API</h3>
+          <p>Flask backend exposes endpoints for city loading, weather data, road network GeoJSON, and route computation — consumed by this Leaflet.js frontend.</p>
+        </div>
+        <div class="about-card">
+          <div class="about-label">Safety Alerts</div>
+          <h3>Risk Alerts</h3>
+          <p>Compares the flood-aware route vs normal shortest path. Shows risk distribution across road segments and issues alerts for dangerous conditions.</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ══════════════════ ALERT BANNER ══════════════════ -->
+  <div class="alert-banner hidden" id="alert-banner">
+    <span id="alert-text"></span>
+    <button onclick="closeAlert()" class="alert-close">Dismiss</button>
+  </div>
+
+  <!-- ══════════════════ SCRIPTS ══════════════════ -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
