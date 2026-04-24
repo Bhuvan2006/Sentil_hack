@@ -24,6 +24,8 @@ let currentCity = null;
 let statusPollTimer = null;
 let loadPollTimer = null;
 let cities = [];
+let darkTileLayer = null;
+let lightTileLayer = null;
 
 // ── Leaflet map icons ─────────────────────────────────────────────────────
 const ORIGIN_ICON = L.divIcon({
@@ -60,17 +62,35 @@ function initMap() {
     zoom: 13,
     zoomControl: true,
     attributionControl: true,
+    zoomControl: false,
   });
 
-  // Dark tile layer
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  // Tile layers
+  darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '© OpenStreetMap © CartoDB',
     subdomains: 'abcd', maxZoom: 19,
-  }).addTo(map);
+  });
+  lightTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CartoDB',
+    subdomains: 'abcd', maxZoom: 19,
+  });
 
-  // Click handler – set origin then dest
+  darkTileLayer.addTo(map);
+
+  // Click handler
   map.on('click', onMapClick);
-  showTooltip('Click anywhere to set your Origin point 📍');
+  showTooltip('Click anywhere to set your Origin point');
+}
+
+function switchMapTile() {
+  const theme = document.documentElement.getAttribute('data-theme');
+  if (theme === 'light') {
+    if (map.hasLayer(darkTileLayer))  map.removeLayer(darkTileLayer);
+    if (!map.hasLayer(lightTileLayer)) lightTileLayer.addTo(map);
+  } else {
+    if (map.hasLayer(lightTileLayer)) map.removeLayer(lightTileLayer);
+    if (!map.hasLayer(darkTileLayer)) darkTileLayer.addTo(map);
+  }
 }
 
 function onMapClick(e) {
@@ -81,19 +101,19 @@ function onMapClick(e) {
     if (originMarker) map.removeLayer(originMarker);
     originMarker = L.marker([lat, lng], { icon: ORIGIN_ICON })
       .addTo(map)
-      .bindPopup(`<b>📍 Origin</b><br>${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      .bindPopup(`<b>Origin</b><br>${lat.toFixed(5)}, ${lng.toFixed(5)}`);
     document.getElementById('origin-label').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     clickMode = 'dest';
-    showTooltip('Now click to set your Destination 🎯');
+    showTooltip('Now click to set your Destination');
   } else {
     destLatLng = { lat, lng };
     if (destMarker) map.removeLayer(destMarker);
     destMarker = L.marker([lat, lng], { icon: DEST_ICON })
       .addTo(map)
-      .bindPopup(`<b>🎯 Destination</b><br>${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      .bindPopup(`<b>Destination</b><br>${lat.toFixed(5)}, ${lng.toFixed(5)}`);
     document.getElementById('dest-label').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
     clickMode = 'origin';
-    showTooltip('Click "Find Safe Route" or set another Origin 📍');
+    showTooltip('Click "Find Safe Route" or set a new Origin');
     document.getElementById('find-route-btn').disabled = false;
   }
 }
@@ -181,7 +201,7 @@ function getLoadMessage(pct) {
 
 async function onCityLoaded(status) {
   updateProgress(100, 'City loaded!');
-  document.getElementById('chip-city').textContent = `🏙 ${status.city || 'City'}`;
+  document.getElementById('chip-city').textContent = status.city?.split(',')[0] || 'City';
   updateRiskChip(status.rainfall_score, status.risk_level);
 
   // Fetch and render road network
@@ -244,7 +264,7 @@ async function findRoute() {
   }
 
   document.getElementById('find-route-btn').disabled = true;
-  document.getElementById('find-route-btn').innerHTML = '<span>⏳</span> Computing…';
+  document.getElementById('find-route-btn').textContent = 'Computing…';
 
   // Clear old paths
   if (safePathLayer)   { map.removeLayer(safePathLayer);   safePathLayer = null; }
@@ -295,7 +315,7 @@ async function findRoute() {
     showAlert(`Route request failed: ${e.message}`);
   } finally {
     document.getElementById('find-route-btn').disabled = false;
-    document.getElementById('find-route-btn').innerHTML = '<span class="btn-icon">🚗</span> Find Safe Route';
+    document.getElementById('find-route-btn').textContent = 'Find Safe Route';
   }
 }
 
@@ -354,7 +374,7 @@ function clearRoute() {
   document.getElementById('dest-label').textContent   = 'Not set';
   document.getElementById('find-route-btn').disabled = true;
   document.getElementById('route-result').classList.add('hidden');
-  showTooltip('Click anywhere to set your Origin point 📍');
+  showTooltip('Click anywhere to set your Origin point');
 }
 
 // ── Weather ───────────────────────────────────────────────────────────────────
@@ -495,9 +515,13 @@ function showPanel(name) {
     btn?.classList.toggle('active', isActive);
     if (panel) panel.classList.toggle('hidden', !isActive);
   });
-  // Map container always visible when map panel active
-  const mapCont = document.getElementById('map-panel');
-  if (mapCont) mapCont.classList.toggle('hidden', name !== 'map');
+  // Hide sidebar & chips when switching away from map
+  const sidebar = document.getElementById('sidebar');
+  const chips   = document.querySelector('.map-chips');
+  const tooltip = document.getElementById('map-tooltip');
+  if (sidebar) sidebar.classList.toggle('hidden', name !== 'map');
+  if (chips)   chips.classList.toggle('hidden', name !== 'map');
+  if (tooltip) tooltip.classList.add('hidden');
 
   if (name === 'map') { setTimeout(() => map?.invalidateSize(), 50); }
 }
@@ -519,7 +543,7 @@ function updateRiskChip(score, level) {
   chip.classList.remove('hidden');
   chip.style.borderColor = getRiskColor(score);
   chip.style.color = getRiskColor(score);
-  chip.textContent = `🌧 Flood Risk: ${level}`;
+  chip.textContent = `Flood Risk: ${level}`;
 }
 
 function showTooltip(msg) {
