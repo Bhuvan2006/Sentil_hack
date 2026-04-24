@@ -42,6 +42,7 @@
         <button class="nav-tab active" id="nav-map" onclick="showPanel('map')">Map</button>
         <button class="nav-tab" id="nav-weather" onclick="showPanel('weather')">Weather</button>
         <button class="nav-tab" id="nav-assessment" onclick="showPanel('assessment')" style="color:#ff6d00;font-weight:700">⚠ Assessment</button>
+        <button class="nav-tab" id="nav-news" onclick="showPanel('news')">Disaster News</button>
         <button class="nav-tab" id="nav-simulation" onclick="showPanel('simulation')">Simulation</button>
       </nav>
     </div>
@@ -170,6 +171,7 @@
   </div>
 
   <!-- ══════════════════ FULL PANELS (Weather / About) ══════════════════ -->
+  <!-- ── WEATHER PANEL ── -->
   <div class="full-panel-backdrop hidden" id="weather-panel">
     <div class="full-panel">
       <div class="full-panel-header">
@@ -178,6 +180,19 @@
       </div>
       <div id="weather-panel-content">
         <div class="placeholder-text large">Load a city first to see weather data.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DISASTER NEWS PANEL ── -->
+  <div class="full-panel-backdrop hidden" id="news-panel">
+    <div class="full-panel">
+      <div class="full-panel-header">
+        <h2 class="full-panel-title">Disaster News & Global Intel</h2>
+        <button class="panel-close-btn" onclick="showPanel('map')">Back to Map</button>
+      </div>
+      <div id="news-panel-content" class="news-scroll-container">
+        <div class="placeholder-text large">Fetching real-time disaster reports...</div>
       </div>
     </div>
   </div>

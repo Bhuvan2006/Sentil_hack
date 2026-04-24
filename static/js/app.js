@@ -617,23 +617,38 @@ function renderWeatherPanel(data) {
   const gaugeCircumference = 251.2; // 2 * PI * 40 (approx for radius 40)
   const gaugeOffset = gaugeCircumference - (cur.flood_risk_score * gaugeCircumference);
 
-  // 6. Forecast Chart HTML
+  // 6. Forecast Chart HTML & Next Spike Logic
   const maxPrecip = Math.max(...hourly, 2);
+  let nextSpike = null;
   const barItems = hourly.map((v, i) => {
     const h = (new Date().getHours() + i) % 24;
     const hStr = h < 10 ? `0${h}:00` : `${h}:00`;
     const heightPct = Math.max(2, (v / maxPrecip) * 100);
+    
+    // Highlight first major spike in the next 12h
+    if (!nextSpike && v > 2.0 && v > (cur.precipitation_mm + 0.5)) {
+      nextSpike = { time: hStr, intensity: v > 8 ? 'Critical' : (v > 4 ? 'Heavy' : 'Moderate'), val: v };
+    }
+
     // Color intensity based on mm
     const barColor = v > 10 ? '#FF1744' : (v > 5 ? '#FFD600' : '#1a73e8');
+    const isSpike = nextSpike && nextSpike.time === hStr;
     
     return `
-      <div class="forecast-bar-item">
+      <div class="forecast-bar-item ${isSpike ? 'is-spike' : ''}">
         <div class="bar-value-tooltip">${v.toFixed(1)}mm</div>
-        <div class="bar-fill ${v > 0 ? 'water-anim' : ''}" style="height:${heightPct}%; background:${barColor}"></div>
-        <div class="bar-label">${hStr}</div>
+        <div class="bar-fill ${v > 5 ? 'water-anim' : ''}" 
+             style="height:${heightPct}%; background:${barColor}; box-shadow: ${isSpike ? '0 0 15px ' + barColor : 'none'}"></div>
+        <div class="bar-label">${hStr} ${isSpike ? '⚡' : ''}</div>
       </div>
     `;
   }).join('');
+
+  // 7. Water Level ASCII Bar
+  // Score 1.0 = ~100cm flood depth in low-lying areas
+  const waterLevelCm = Math.round(cur.flood_risk_score * 100);
+  const filledBars = Math.min(10, Math.ceil(cur.flood_risk_score * 10));
+  const asciiBar = "▓".repeat(filledBars) + "░".repeat(10 - filledBars);
 
   const container = document.getElementById('weather-panel-content');
   container.innerHTML = `
@@ -682,10 +697,10 @@ function renderWeatherPanel(data) {
           </div>
           <div class="insight-card" style="grid-column: 1 / -1">
             <div class="insight-header">
-              <span class="insight-icon">🔍</span>
-              <span class="insight-title">Predictive Insight</span>
+              <span class="insight-icon">📈 Rainfall Trend</span>
+              <span class="insight-title">${trendText}</span>
             </div>
-            <div class="insight-value">${predictiveInsight}</div>
+            <div class="insight-value">${trendIcon} ${trendText}</div>
           </div>
         </div>
         
@@ -697,11 +712,11 @@ function renderWeatherPanel(data) {
         ` : ''}
 
         <div class="dashboard-section" style="background:var(--surface-sunken)">
-          <div class="insight-title">Localized Intelligence</div>
-          <p style="font-size:13px; color:var(--text-secondary); margin:8px 0 0">
-            Urban drainage systems in this area may overflow if rainfall exceeds 10mm/hr. 
-            Nearby low-elevation segments are prioritized in routing.
-          </p>
+          <div class="insight-title">Water Level Status</div>
+          <div style="font-family: monospace; font-size: 20px; color: var(--accent); margin-top: 10px; letter-spacing: 2px;">
+            ${asciiBar} <span style="font-family: var(--font); font-size: 14px; color: var(--text-primary); margin-left: 10px;">(${waterLevelCm} cm)</span>
+          </div>
+          <p style="font-size:12px; color:var(--text-muted); margin-top: 5px;">Estimated flood depth in low-lying segments based on risk score.</p>
         </div>
       </div>
 
@@ -718,6 +733,25 @@ function renderWeatherPanel(data) {
           </div>
           <div class="forecast-bars-container">
             ${barItems}
+          </div>
+        </div>
+
+        <!-- NEW: Risk Window -->
+        <div class="dashboard-section" style="background: rgba(26, 115, 232, 0.05); border-left: 4px solid var(--accent);">
+          <div class="insight-title" style="color: var(--accent); font-weight: 800;">⚠ Next Risk Window</div>
+          <div class="weather-grid" style="margin-top: 15px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+            <div class="weather-item">
+              <div class="weather-item-label">Next Rain Spike</div>
+              <div class="weather-item-value" style="color: var(--danger);">${nextSpike ? nextSpike.time : 'None in 12h'}</div>
+            </div>
+            <div class="weather-item">
+              <div class="weather-item-label">Expected Intensity</div>
+              <div class="weather-item-value">${nextSpike ? nextSpike.intensity : 'N/A'}</div>
+            </div>
+            <div class="weather-item">
+              <div class="weather-item-label">Peak Volume</div>
+              <div class="weather-item-value">${nextSpike ? nextSpike.val.toFixed(1) + ' mm/hr' : 'N/A'}</div>
+            </div>
           </div>
         </div>
         
@@ -779,7 +813,7 @@ function setStatusUI(state, msg) {
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function showPanel(name) {
-  ['map', 'weather', 'assessment', 'simulation'].forEach(p => {
+  ['map', 'weather', 'assessment', 'simulation', 'news'].forEach(p => {
     const btn   = document.getElementById(`nav-${p}`);
     const panel = document.getElementById(`${p}-panel`);
     const isActive = p === name;
@@ -796,6 +830,7 @@ function showPanel(name) {
 
   if (name === 'map') { setTimeout(() => map?.invalidateSize(), 50); }
   if (name === 'assessment') { fetchDisasterAssessment(); }
+  if (name === 'news') { fetchDisasterNews(); }
 }
 
 function updateProgress(pct, msg) {
@@ -1121,4 +1156,80 @@ async function initiateEvacuation() {
     findRoute();
     map.setView([best.lat, best.lon], 15);
   }, 500);
+}
+// ────────────────────────────────────────────────────────────────────────────
+// DISASTER NEWS & INTEL
+// ────────────────────────────────────────────────────────────────────────────
+
+async function fetchDisasterNews() {
+  const container = document.getElementById('news-panel-content');
+  container.innerHTML = `
+    <div class="news-loading">
+      <div class="spinner"></div>
+      <p>Fetching global disaster intelligence...</p>
+    </div>
+  `;
+
+  try {
+    // Fetch through local proxy to avoid CORS issues
+    const url = `${API}/api/disaster-news`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Failed to fetch news');
+    const data = await res.json();
+    renderNewsPanel(data.articles || []);
+  } catch (e) {
+    console.error('News Error:', e);
+    container.innerHTML = `
+      <div class="placeholder-text large">
+        <span style="font-size:40px">📡</span><br>
+        Could not connect to disaster news feed.<br>
+        <button class="btn btn-primary" style="margin-top:20px" onclick="fetchDisasterNews()">Retry Connection</button>
+      </div>
+    `;
+  }
+}
+
+function renderNewsPanel(articles) {
+  const container = document.getElementById('news-panel-content');
+  if (!articles.length) {
+    container.innerHTML = '<div class="placeholder-text large">No recent disaster articles found.</div>';
+    return;
+  }
+
+  const html = `
+    <div class="news-dashboard">
+      <div class="news-header-meta">
+        <div class="intel-badge">LIVE NEWS FEED</div>
+        <div class="intel-source">Powered by NewsAPI</div>
+      </div>
+      
+      <div class="news-grid">
+        ${articles.map(a => {
+          const date = a.publishedAt ? new Date(a.publishedAt).toLocaleDateString() : 'Recent';
+          const title = a.title || 'Untitled';
+          const source = a.source?.name || 'News';
+          const url = a.url || '#';
+          const image = a.urlToImage || 'https://images.unsplash.com/photo-1454165833767-12868a59966c?auto=format&fit=crop&q=80&w=300&h=200';
+          const desc = a.description ? a.description.substring(0, 100) + '...' : 'Click to read the full report on this disaster event.';
+          
+          return `
+            <div class="news-card news-card--image" onclick="window.open('${url}', '_blank')">
+              <div class="news-card-img" style="background-image: url('${image}')"></div>
+              <div class="news-card-content">
+                <div class="news-card-tag">${source}</div>
+                <div class="news-card-date">${date}</div>
+                <h3 class="news-card-title">${title}</h3>
+                <p class="news-card-desc">${desc}</p>
+                <div class="news-card-footer">
+                  <span>View Details</span>
+                  <span class="news-arrow">→</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+  container.innerHTML = html;
 }

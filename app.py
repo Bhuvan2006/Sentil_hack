@@ -406,6 +406,40 @@ def api_shelters():
     return jsonify({"shelters": shelters})
 
 
+@app.route("/api/disaster-news")
+def api_disaster_news():
+    """
+    Proxies filtered disaster news from NewsAPI.
+    """
+    import requests
+    try:
+        api_key = "a727f4eeb63f430b8010e0e22b015249"
+        # Stricter query for natural disasters, excluding common false positives
+        query = (
+            '(disaster OR flood OR earthquake OR hurricane OR "natural disaster" OR wildfire OR cyclone OR tsunami) '
+            'AND (emergency OR relief OR evacuation OR "death toll" OR destruction OR "state of emergency") '
+            'NOT (financial OR economic OR movie OR film OR "box office")'
+        )
+        url = f"https://newsapi.org/v2/everything?q={requests.utils.quote(query)}&sortBy=publishedAt&pageSize=20&language=en&apiKey={api_key}"
+        
+        res = requests.get(url, timeout=10)
+        res.raise_for_status()
+        data = res.json()
+        
+        # Additional backend filtering for safety
+        disaster_keywords = ['flood', 'disaster', 'quake', 'storm', 'cyclone', 'tsunami', 'evacuation', 'emergency', 'wildfire', 'casualty', 'death']
+        filtered_articles = []
+        for art in data.get("articles", []):
+            text = (art.get("title", "") + " " + art.get("description", "")).lower()
+            if any(k in text for k in disaster_keywords):
+                filtered_articles.append(art)
+        
+        return jsonify({"articles": filtered_articles[:15]})
+    except Exception as e:
+        logger.error(f"NewsAPI fetch error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 502
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
