@@ -345,10 +345,20 @@
     safe: { icon: "SAFE", label: "Safe Zone" }
   };
 
+  // Compute maximum possible scenario score across all levels
+  const TOTAL_MAX_SCORE = LEVELS.reduce((total, level) => {
+    const scenarioMax = Object.values(level.scenarios).reduce((sum, sc) => {
+      const best = Math.max(...sc.choices.map((c) => c.score));
+      return sum + (best > 0 ? best : 0);
+    }, 0);
+    return total + scenarioMax;
+  }, 0);
+
   window.FloodScenarios = {
     INTRO_STEPS,
     LEVELS,
     FLOOD_TIPS,
-    TILE_META
+    TILE_META,
+    TOTAL_MAX_SCORE
   };
 })();

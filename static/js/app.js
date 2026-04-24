@@ -508,7 +508,7 @@ function setStatusUI(state, msg) {
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function showPanel(name) {
-  ['map', 'weather', 'game'].forEach(p => {
+  ['map', 'weather', 'simulation'].forEach(p => {
     const btn   = document.getElementById(`nav-${p}`);
     const panel = document.getElementById(`${p}-panel`);
     const isActive = p === name;

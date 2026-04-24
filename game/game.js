@@ -1,5 +1,5 @@
 (function () {
-  const { INTRO_STEPS, LEVELS, FLOOD_TIPS, TILE_META } = window.FloodScenarios;
+  const { INTRO_STEPS, LEVELS, FLOOD_TIPS, TILE_META, TOTAL_MAX_SCORE } = window.FloodScenarios;
 
   const TILE_TYPES = {
     ROAD: "road",
@@ -143,7 +143,7 @@
     levelOverlayEl.classList.add("hidden");
     endOverlayEl.classList.add("hidden");
     introOverlayEl.classList.remove("hidden");
-    appShellEl.classList.remove("app-hidden");
+    // appShell visibility is controlled by the start-splash button
 
     updateIntroStep();
     updateStatus(
@@ -369,14 +369,14 @@
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = choice.label;
-      button.addEventListener("click", () => applyScenarioChoice(choice));
+      button.addEventListener("click", () => applyScenarioChoice(choice, scenario));
       scenarioChoicesEl.appendChild(button);
     });
 
     scenarioOverlayEl.classList.remove("hidden");
   }
 
-  function applyScenarioChoice(choice) {
+  function applyScenarioChoice(choice, scenario) {
     state.score += choice.score;
 
     if (choice.waterDelta) {
@@ -392,12 +392,66 @@
     }
 
     updateStatus("Decision recorded.", choice.status);
+
+    // If it was a bad choice (negative score), show the wrong-choice panel
+    const isWrongChoice = choice.score < 0;
+    if (isWrongChoice && scenario) {
+      const correctChoice = scenario.choices.find((c) => c.score > 0) || null;
+      showWrongChoicePanel(choice, correctChoice, scenario);
+      // Don't unlock movement yet — wcpContinueBtn will do that
+      return;
+    }
+
     scenarioOverlayEl.classList.add("hidden");
     state.movementLocked = false;
 
     updateHud();
     renderBoard();
     checkEndConditions();
+  }
+
+  // ── Wrong-choice feedback panel ────────────────────────────────────────────
+  const wrongChoicePanelEl  = document.getElementById("wrongChoicePanel");
+  const wcpBadgeEl          = document.getElementById("wcpBadge");
+  const wcpTitleEl          = document.getElementById("wcpTitle");
+  const wcpWrongLabelEl     = document.getElementById("wcpWrongLabel");
+  const wcpWrongReasonEl    = document.getElementById("wcpWrongReason");
+  const wcpCorrectLabelEl   = document.getElementById("wcpCorrectLabel");
+  const wcpCorrectReasonEl  = document.getElementById("wcpCorrectReason");
+  const wcpContinueBtnEl    = document.getElementById("wcpContinueBtn");
+
+  wcpContinueBtnEl.addEventListener("click", () => {
+    wrongChoicePanelEl.classList.add("hidden");
+    scenarioChoicesEl.classList.remove("hidden");
+    scenarioOverlayEl.classList.add("hidden");
+    state.movementLocked = false;
+    updateHud();
+    renderBoard();
+    checkEndConditions();
+  });
+
+  function showWrongChoicePanel(wrongChoice, correctChoice, scenario) {
+    // Hide the choice buttons, show the feedback panel
+    scenarioChoicesEl.classList.add("hidden");
+    wrongChoicePanelEl.classList.remove("hidden");
+
+    wcpBadgeEl.textContent    = "Wrong Choice";
+    wcpTitleEl.textContent    = scenario.title;
+
+    wcpWrongLabelEl.textContent  = `You chose: "${wrongChoice.label}"`;
+    wcpWrongReasonEl.textContent = wrongChoice.mistake
+      ? `Why it was wrong: ${wrongChoice.mistake}`
+      : wrongChoice.status;
+
+    if (correctChoice) {
+      wcpCorrectLabelEl.textContent  = `Better choice: "${correctChoice.label}"`;
+      wcpCorrectReasonEl.textContent = correctChoice.tip
+        ? `Why it works: ${correctChoice.tip}`
+        : correctChoice.status;
+    } else {
+      wcpCorrectLabelEl.textContent  = "";
+      wcpCorrectReasonEl.textContent = "";
+    }
   }
 
   function checkEndConditions() {
@@ -526,7 +580,19 @@
 
     endTitleEl.textContent = title;
     endSummaryEl.textContent = summary;
-    finalScoreEl.textContent = String(overallScore);
+
+    // ── Score display: user marks / total marks
+    const pct = Math.max(0, Math.min(100, Math.round((overallScore / TOTAL_MAX_SCORE) * 100)));
+    const grade =
+      pct >= 85 ? "Excellent" :
+      pct >= 65 ? "Good" :
+      pct >= 40 ? "Satisfactory" : "Needs Improvement";
+
+    finalScoreEl.innerHTML = `
+      <span class="score-fraction">${overallScore} <span class="score-sep">/</span> ${TOTAL_MAX_SCORE}</span>
+      <span class="score-pct-label">${pct}% &mdash; ${grade}</span>
+      <span class="score-bar-wrap"><span class="score-bar-fill" style="width:${pct}%"></span></span>
+    `;
     awarenessLevelEl.textContent = awareness;
 
     mistakeListEl.innerHTML = "";

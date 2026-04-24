@@ -3,14 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flood Awareness Exploration Game</title>
+  <title>Flood Awareness Simulation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main id="appShell" class="app-shell">
+
+  <!-- ════════════════════════════════════════════
+       START SPLASH SCREEN  (shown first)
+       ════════════════════════════════════════════ -->
+  <div id="startSplash" class="start-splash">
+    <div class="splash-card">
+      <p class="splash-eyebrow">Community Flood Drill</p>
+      <h1 class="splash-title">Flood Awareness<br>Simulation</h1>
+      <p class="splash-desc">
+        Travel across a neighbourhood, respond to flood situations in real time,
+        and learn how smarter decisions keep you and your community safer.
+      </p>
+
+      <ul class="splash-features">
+        <li><span class="feat-dot feat-blue"></span>4 escalating flood levels</li>
+        <li><span class="feat-dot feat-teal"></span>Real-time water spread</li>
+        <li><span class="feat-dot feat-green"></span>Decision scenarios with feedback</li>
+        <li><span class="feat-dot feat-gold"></span>Score &amp; awareness tracking</li>
+      </ul>
+
+      <div class="splash-controls-hint">
+        Use <kbd>Arrow keys</kbd> or <kbd>W A S D</kbd> to move on the map
+      </div>
+
+      <button id="startSimBtn" class="splash-start-btn" type="button">
+        Start Simulation
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════
+       MAIN GAME SHELL  (hidden until start)
+       ════════════════════════════════════════════ -->
+  <main id="appShell" class="app-shell app-hidden">
     <section class="info-panel">
       <div>
         <p class="eyebrow">Community Flood Drill</p>
@@ -75,6 +108,7 @@
     </section>
   </main>
 
+  <!-- ── Intro briefing overlay ── -->
   <section id="introOverlay" class="overlay" aria-live="polite">
     <div class="dialog intro-dialog">
       <p class="dialog-tag">Game Briefing</p>
@@ -91,15 +125,30 @@
     </div>
   </section>
 
+  <!-- ── Scenario decision overlay ── -->
   <section id="scenarioOverlay" class="overlay hidden" aria-live="polite">
     <div class="dialog">
       <p class="dialog-tag">Decision Point</p>
       <h2 id="scenarioTitle">Scenario</h2>
       <p id="scenarioDescription"></p>
       <div id="scenarioChoices" class="choice-list"></div>
+
+      <!-- ── Wrong-choice feedback panel (shown after choice) ── -->
+      <div id="wrongChoicePanel" class="wrong-choice-panel hidden">
+        <div class="wcp-header">
+          <span class="wcp-badge" id="wcpBadge">Wrong Choice</span>
+          <h3 id="wcpTitle"></h3>
+        </div>
+        <p id="wcpWrongLabel" class="wcp-wrong-label"></p>
+        <p id="wcpWrongReason" class="wcp-reason wrong-reason"></p>
+        <p id="wcpCorrectLabel" class="wcp-correct-label"></p>
+        <p id="wcpCorrectReason" class="wcp-reason correct-reason"></p>
+        <button id="wcpContinueBtn" type="button" class="wcp-continue-btn">Continue</button>
+      </div>
     </div>
   </section>
 
+  <!-- ── Level complete/fail overlay ── -->
   <section id="levelOverlay" class="overlay hidden" aria-live="polite">
     <div class="dialog level-dialog">
       <p class="dialog-tag" id="levelDialogTag">Level Complete</p>
@@ -135,15 +184,16 @@
     </div>
   </section>
 
+  <!-- ── Final campaign result overlay ── -->
   <section id="endOverlay" class="overlay hidden" aria-live="polite">
     <div class="dialog end-dialog">
       <p class="dialog-tag">Final Result</p>
       <h2 id="endTitle">Outcome</h2>
       <p id="endSummary"></p>
 
-      <div class="results-grid">
-        <div class="result-card">
-          <span>Final Score</span>
+      <div class="end-score-block">
+        <div class="result-card result-card--score">
+          <span>Your Score</span>
           <strong id="finalScore">0</strong>
         </div>
         <div class="result-card">
@@ -175,5 +225,18 @@
 
   <script src="scenarios.js"></script>
   <script src="game.js"></script>
+
+  <!-- Start-splash wiring -->
+  <script>
+    document.getElementById('startSimBtn').addEventListener('click', function () {
+      const splash = document.getElementById('startSplash');
+      splash.classList.add('splash-exit');
+      setTimeout(function () {
+        splash.style.display = 'none';
+        // game.js already called init() which shows introOverlay — just reveal the shell
+        document.getElementById('appShell').classList.remove('app-hidden');
+      }, 420);
+    });
+  </script>
 </body>
 </html>
