@@ -20,7 +20,7 @@ from flask_cors import CORS
 from data_fetcher import fetch_weather_data
 from flood_model import FloodRiskModel
 from route_engine import (
-    load_city_graph, graph_to_geojson, find_safe_route
+    load_city_graph, graph_to_geojson, find_safe_route, find_nearby_shelters
 )
 
 # ── Logging ──────────────────────────────────────────────────────────────────
@@ -178,9 +178,17 @@ def api_weather():
 @app.route("/api/load-city", methods=["POST"])
 def api_load_city():
     body = request.get_json(silent=True) or {}
-    city = body.get("city", "Surat, India")
-    lat  = body.get("lat", 21.1702)
-    lon  = body.get("lon", 72.8311)
+    lat  = body.get("lat")
+    lon  = body.get("lon")
+    city = body.get("city")
+
+    if not city and lat is not None and lon is not None:
+        city = f"Location ({lat:.2f}, {lon:.2f})"
+    
+    if not city:
+        city = "Surat, India"
+    if lat is None: lat = 21.1702
+    if lon is None: lon = 72.8311
 
     with _lock:
         if _state["loading"]:
@@ -226,6 +234,17 @@ def api_route():
 
     result = find_safe_route(G, orig_lat, orig_lon, dest_lat, dest_lon)
     return jsonify(result)
+
+
+@app.route("/api/shelters")
+def api_shelters():
+    lat = request.args.get("lat", type=float)
+    lon = request.args.get("lon", type=float)
+    if lat is None or lon is None:
+        return jsonify({"error": "lat and lon required"}), 400
+    
+    shelters = find_nearby_shelters(lat, lon)
+    return jsonify({"shelters": shelters})
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

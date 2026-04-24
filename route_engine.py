@@ -268,3 +268,58 @@ def graph_to_geojson(G: nx.MultiDiGraph, max_edges: int = 5000) -> dict:
         features.append(feature)
 
     return {"type": "FeatureCollection", "features": features}
+
+
+def find_nearby_shelters(lat: float, lon: float, radius_m: int = 1000) -> list:
+    """
+    Find nearby potential shelters (schools, community centers, hospitals, etc.)
+    using OSMnx features_from_point.
+    """
+    tags = {
+        "amenity": ["school", "community_centre", "hospital", "place_of_worship", "social_facility"],
+        "building": ["school", "hospital", "community_centre"]
+    }
+    try:
+        # Search for features within the radius
+        gdf = ox.features_from_point((lat, lon), tags=tags, dist=radius_m)
+        if gdf.empty:
+            return []
+        
+        shelters = []
+        for _, row in gdf.iterrows():
+            # Get name, fallback to type if missing
+            name = row.get("name")
+            stype = row.get("amenity") or row.get("building") or "Shelter"
+            if not name:
+                name = f"Unnamed {stype.replace('_', ' ').title()}"
+
+            # Get centroid for lat/lon coordinates
+            center = row.geometry.centroid
+            
+            # Simple distance for sorting (Pythagorean is fine for small radius)
+            dist = math.sqrt((center.y - lat)**2 + (center.x - lon)**2)
+            
+            shelters.append({
+                "name": name,
+                "lat": center.y,
+                "lon": center.x,
+                "type": stype,
+                "distance_approx": dist
+            })
+        
+        # Sort by distance
+        shelters.sort(key=lambda x: x["distance_approx"])
+        
+        # Remove duplicates by approximate location to avoid multi-polygon issues
+        unique_shelters = []
+        seen_locs = set()
+        for s in shelters:
+            loc_key = (round(s["lat"], 5), round(s["lon"], 5))
+            if loc_key not in seen_locs:
+                unique_shelters.append(s)
+                seen_locs.add(loc_key)
+                
+        return unique_shelters[:10]  # Return top 10
+    except Exception as e:
+        logger.error(f"Error finding shelters: {e}")
+        return []

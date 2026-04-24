@@ -26,6 +26,7 @@ let loadPollTimer = null;
 let cities = [];
 let darkTileLayer = null;
 let lightTileLayer = null;
+let userLatLng = null; // Store user's current location
 
 // ── Leaflet map icons ─────────────────────────────────────────────────────
 const ORIGIN_ICON = L.divIcon({
@@ -54,7 +55,43 @@ document.addEventListener('DOMContentLoaded', () => {
   initMap();
   loadCities();
   startStatusPoll();
+  requestUserLocation(); // Get current location on startup
 });
+
+function requestUserLocation() {
+  if (!navigator.geolocation) {
+    console.log('Geolocation not supported');
+    return;
+  }
+
+  showTooltip('Finding your location...');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      userLatLng = { lat: latitude, lng: longitude };
+      originLatLng = userLatLng; // Automatically set user as origin
+      
+      // Center map and load city for this location
+      map.setView([latitude, longitude], 14);
+      loadCity(latitude, longitude);
+      
+      // Update origin label
+      document.getElementById('origin-label').textContent = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+      if (originMarker) map.removeLayer(originMarker);
+      originMarker = L.marker([latitude, longitude], { icon: ORIGIN_ICON })
+        .addTo(map)
+        .bindPopup(`<b>Your Location</b>`);
+      
+      clickMode = 'dest';
+      showTooltip('Location found. Click map to set destination or find shelter.');
+    },
+    (err) => {
+      console.warn(`Geolocation error: ${err.message}`);
+      showTooltip('Could not get location. Please select a city manually.');
+    },
+    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+  );
+}
 
 function initMap() {
   map = L.map('map', {
@@ -137,13 +174,21 @@ async function loadCities() {
   }
 }
 
-async function loadCity() {
+async function loadCity(lat, lon) {
   const sel = document.getElementById('city-select');
-  const cityName = sel.value;
-  if (!cityName) { showAlert('Please select a city first.'); return; }
+  let cityName = sel.value;
+  
+  // If lat/lon provided (from geolocation), use those instead of selection
+  const useManualCoord = (lat !== undefined && lon !== undefined);
+  
+  if (!cityName && !useManualCoord) { showAlert('Please select a city first.'); return; }
 
-  const cityObj = cities.find(c => c.name === cityName);
-  if (!cityObj) return;
+  const cityObj = cities.find(c => c.name === cityName) || { lat, lon, zoom: 14 };
+  if (!cityObj && !useManualCoord) return;
+  
+  const finalLat = useManualCoord ? lat : cityObj.lat;
+  const finalLon = useManualCoord ? lon : cityObj.lon;
+  const finalCity = useManualCoord ? null : cityName; // Backend handles null by using lat/lon label
 
   // Show loading UI
   document.getElementById('load-progress').classList.remove('hidden');
@@ -154,12 +199,12 @@ async function loadCity() {
     const res = await fetch(`${API}/api/load-city`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ city: cityName, lat: cityObj.lat, lon: cityObj.lon })
+      body: JSON.stringify({ city: finalCity, lat: finalLat, lon: finalLon })
     });
     if (!res.ok) throw new Error(await res.text());
 
-    // Pan map to city
-    map.setView([cityObj.lat, cityObj.lon], cityObj.zoom || 13);
+    // Pan map
+    map.setView([finalLat, finalLon], cityObj.zoom || 14);
     currentCity = cityObj;
 
     // Poll until done
@@ -197,6 +242,43 @@ function getLoadMessage(pct) {
   if (pct < 85) return 'Scoring road segments for flood risk…';
   if (pct < 100) return 'Building map visualization…';
   return 'City loaded!';
+}
+
+async function findNearestShelter() {
+  const loc = originLatLng || userLatLng;
+  if (!loc) {
+    showAlert('Need your origin location first.');
+    return;
+  }
+
+  showTooltip('Searching for nearby shelters...');
+  try {
+    const res = await fetch(`${API}/api/shelters?lat=${loc.lat}&lon=${loc.lng}`);
+    const data = await res.json();
+    const shelters = data.shelters || [];
+
+    if (shelters.length === 0) {
+      showAlert('No safe shelters found within 1km. Please select a destination manually.');
+      return;
+    }
+
+    // Pick the closest one
+    const s = shelters[0];
+    destLatLng = { lat: s.lat, lng: s.lon };
+    
+    if (destMarker) map.removeLayer(destMarker);
+    destMarker = L.marker([s.lat, s.lon], { icon: DEST_ICON })
+      .addTo(map)
+      .bindPopup(`<b>Safe Shelter</b><br>${s.name}<br>${s.type.replace('_', ' ')}`);
+    
+    document.getElementById('dest-label').textContent = s.name;
+    map.setView([s.lat, s.lon], 15);
+    
+    showTooltip(`Found shelter: ${s.name}. Click "Find Safe Route" to navigate.`);
+    document.getElementById('find-route-btn').disabled = false;
+  } catch (e) {
+    showAlert(`Error searching shelters: ${e.message}`);
+  }
 }
 
 async function onCityLoaded(status) {
