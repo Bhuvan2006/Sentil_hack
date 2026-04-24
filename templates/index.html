@@ -136,6 +136,15 @@
         <div class="legend-row"><span class="legend-pip legend-pip--dashed" style="background:#888"></span><span class="legend-text">Normal Route</span></div>
       </div>
     </section>
+
+    <!-- Emergency Protocol Card -->
+    <section class="card" style="border-left: 4px solid var(--danger);">
+      <div class="card-label" style="color: var(--danger);">Emergency Protocol</div>
+      <p class="route-hint" style="margin-bottom: 12px;">Test the intelligent evacuation system by simulating a flood event.</p>
+      <button id="simulate-flood-btn" class="btn btn-primary" style="background: var(--danger); box-shadow: 0 4px 12px rgba(234,67,53,0.4);" onclick="simulateFlood(true)">
+        Simulate Flood Event
+      </button>
+    </section>
   </aside>
 
   <!-- ══════════════════ MAP OVERLAYS ══════════════════ -->

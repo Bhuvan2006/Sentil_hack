@@ -505,46 +505,168 @@ function renderWeatherPanel(data) {
   const cur = data.current;
   const hourly = data.hourly_precip_forecast || [];
   const riskColor = getRiskColor(cur.flood_risk_score);
-  const maxPrecip = Math.max(...hourly, 1);
+  const riskPct = Math.round(cur.flood_risk_score * 100);
 
+  // 1. Decision Message Logic
+  let decisionMsg = "Conditions are stable. Safe to travel.";
+  let decisionIcon = "✅";
+  if (riskPct >= 75) {
+    decisionMsg = "High flood risk detected. Move to safe shelter immediately.";
+    decisionIcon = "🚨";
+  } else if (riskPct >= 40 || cur.precipitation_mm > 5) {
+    decisionMsg = "Moderate rainfall. Avoid low-lying areas and known flood zones.";
+    decisionIcon = "⚠️";
+  } else if (cur.precipitation_mm > 1) {
+    decisionMsg = "Light rain expected. Travel with caution.";
+    decisionIcon = "🌦";
+  }
+
+  // 2. Trend Logic (Recent vs Forecast)
+  const avgForecast = hourly.length ? hourly.slice(0, 3).reduce((a, b) => a + b, 0) / 3 : 0;
+  let trendClass = "trend-stable";
+  let trendText = "Stable conditions";
+  let trendIcon = "→";
+  if (avgForecast > cur.precipitation_mm + 1) {
+    trendClass = "trend-up"; trendText = "Increasing rainfall"; trendIcon = "↑";
+  } else if (avgForecast < cur.precipitation_mm - 1) {
+    trendClass = "trend-down"; trendText = "Decreasing rainfall"; trendIcon = "↓";
+  }
+
+  // 3. Predictive Insights
+  let predictiveInsight = "Low flood risk now, but monitoring conditions.";
+  if (avgForecast > 5) {
+    predictiveInsight = `Heavy rain (${avgForecast.toFixed(1)}mm/hr) expected in next 3 hours.`;
+  } else if (riskPct > 50) {
+    predictiveInsight = "Flood risk is high; conditions may worsen if rain continues.";
+  }
+
+  // 4. Smart Alerts
+  const alerts = [];
+  if (cur.precipitation_mm > 7) alerts.push("Heavy rainfall expected → evacuation routes may change");
+  if (riskPct > 60) alerts.push("Low-lying areas may experience flooding soon");
+  if (avgForecast > 4 && riskPct > 30) alerts.push("Avoid travel in the next 2–3 hours");
+
+  // 5. Gauge SVG calculations
+  const gaugeCircumference = 251.2; // 2 * PI * 40 (approx for radius 40)
+  const gaugeOffset = gaugeCircumference - (cur.flood_risk_score * gaugeCircumference);
+
+  // 6. Forecast Chart HTML
+  const maxPrecip = Math.max(...hourly, 2);
   const barItems = hourly.map((v, i) => {
-    const h = Math.round((new Date().getHours() + i) % 24);
-    const pct = Math.max(4, Math.round((v / maxPrecip) * 100));
+    const h = (new Date().getHours() + i) % 24;
+    const hStr = h < 10 ? `0${h}:00` : `${h}:00`;
+    const heightPct = Math.max(2, (v / maxPrecip) * 100);
+    // Color intensity based on mm
+    const barColor = v > 10 ? '#FF1744' : (v > 5 ? '#FFD600' : '#1a73e8');
+    
     return `
-      <div class="forecast-col">
-        <div class="forecast-fill" style="height:${pct}%;background:linear-gradient(180deg,${riskColor},#0044ff66)"></div>
-        <div class="forecast-label">${h}h</div>
-      </div>`;
+      <div class="forecast-bar-item">
+        <div class="bar-value-tooltip">${v.toFixed(1)}mm</div>
+        <div class="bar-fill ${v > 0 ? 'water-anim' : ''}" style="height:${heightPct}%; background:${barColor}"></div>
+        <div class="bar-label">${hStr}</div>
+      </div>
+    `;
   }).join('');
 
-  document.getElementById('weather-panel-content').innerHTML = `
+  const container = document.getElementById('weather-panel-content');
+  container.innerHTML = `
     <div class="weather-full">
-      <div class="weather-full-card">
-        <h3 style="color:var(--accent);margin-bottom:10px">Current Conditions</h3>
-        <p style="font-size:22px;margin-bottom:8px">${cur.weather_description}</p>
-        <p>🌡 <strong>${cur.temperature}°C</strong></p>
-        <p>💧 Rainfall: <strong>${cur.precipitation_mm} mm/hr</strong></p>
-        <p>📊 6h Total: <strong>${cur.precipitation_6h_mm} mm</strong></p>
-        <p>💨 Wind: <strong>${cur.wind_speed} km/h</strong></p>
-        <p>🌊 Humidity: <strong>${cur.humidity}%</strong></p>
-      </div>
-      <div class="weather-full-card">
-        <h3 style="color:var(--accent);margin-bottom:10px">Flood Risk Score</h3>
-        <div style="font-size:48px;font-weight:700;color:${riskColor};margin:8px 0">
-          ${(cur.flood_risk_score * 100).toFixed(0)}%
+      <!-- Left: Unified Insight Card -->
+      <div class="unified-flood-card">
+        <div class="decision-summary">
+          <div class="decision-icon">${decisionIcon}</div>
+          <div class="decision-text">
+            <h3>Current Advisory</h3>
+            <p>${decisionMsg}</p>
+          </div>
         </div>
-        <div style="background:${riskColor}22;border:1px solid ${riskColor};color:${riskColor};
-          padding:6px 12px;border-radius:100px;display:inline-block;font-weight:600">
-          ${cur.risk_level}
+
+        <div class="dashboard-section gauge-container">
+          <svg class="gauge-svg" viewBox="0 0 100 60">
+            <path class="gauge-bg" d="M10 50 A 40 40 0 0 1 90 50" />
+            <path class="gauge-fill" d="M10 50 A 40 40 0 0 1 90 50" 
+                  style="stroke-dashoffset: ${gaugeOffset}; stroke: ${riskColor}" />
+          </svg>
+          <div class="gauge-data">
+            <span class="gauge-value">${riskPct}%</span>
+            <span class="gauge-label" style="background:${riskColor}22; color:${riskColor}">
+              ${cur.risk_level}
+            </span>
+          </div>
+          <div class="trend-indicator ${trendClass}">
+            ${trendIcon} ${trendText}
+          </div>
         </div>
-        <p style="margin-top:12px;font-size:12px;color:var(--text-secondary)">
-          Score computed from current rainfall intensity, 6-hour accumulation, and WMO weather code using IMD flood thresholds.
-        </p>
+
+        <div class="dashboard-section insights-grid">
+          <div class="insight-card">
+            <div class="insight-header">
+              <span class="insight-icon">🌡</span>
+              <span class="insight-title">Temp & Humidity</span>
+            </div>
+            <div class="insight-value">${cur.temperature}°C · ${cur.humidity}%</div>
+          </div>
+          <div class="insight-card">
+            <div class="insight-header">
+              <span class="insight-icon">💨</span>
+              <span class="insight-title">Wind Speed</span>
+            </div>
+            <div class="insight-value">${cur.wind_speed} km/h</div>
+          </div>
+          <div class="insight-card" style="grid-column: 1 / -1">
+            <div class="insight-header">
+              <span class="insight-icon">🔍</span>
+              <span class="insight-title">Predictive Insight</span>
+            </div>
+            <div class="insight-value">${predictiveInsight}</div>
+          </div>
+        </div>
+        
+        ${alerts.length ? `
+          <div class="dashboard-section">
+            <div class="insight-title" style="margin-bottom:10px">Active Smart Alerts</div>
+            ${alerts.map(a => `<div class="smart-alert">⚠️ ${a}</div>`).join('')}
+          </div>
+        ` : ''}
+
+        <div class="dashboard-section" style="background:var(--surface-sunken)">
+          <div class="insight-title">Localized Intelligence</div>
+          <p style="font-size:13px; color:var(--text-secondary); margin:8px 0 0">
+            Urban drainage systems in this area may overflow if rainfall exceeds 10mm/hr. 
+            Nearby low-elevation segments are prioritized in routing.
+          </p>
+        </div>
       </div>
-      <div class="weather-full-card" style="grid-column:span 1">
-        <h3 style="color:var(--accent);margin-bottom:10px">12-Hour Precipitation Forecast</h3>
-        <div class="forecast-bar">${barItems}</div>
-        <p style="font-size:11px;color:var(--text-muted);margin-top:8px">Hourly rainfall (mm) for the next 12 hours</p>
+
+      <!-- Right: Forecast Detail -->
+      <div class="unified-flood-card forecast-dashboard">
+        <div class="dashboard-section">
+          <div class="chart-header">
+            <div class="chart-title">12-Hour Rainfall Forecast</div>
+            <div class="chart-legend">
+              <div class="legend-item"><span class="legend-color" style="background:#1a73e8"></span> Light</div>
+              <div class="legend-item"><span class="legend-color" style="background:#FFD600"></span> Moderate</div>
+              <div class="legend-item"><span class="legend-color" style="background:#FF1744"></span> Heavy</div>
+            </div>
+          </div>
+          <div class="forecast-bars-container">
+            ${barItems}
+          </div>
+        </div>
+        
+        <div class="dashboard-section">
+          <div class="insight-title">Precipitation Analysis</div>
+          <div class="weather-grid" style="margin-top:15px">
+            <div class="weather-item">
+              <div class="weather-item-label">Current Rate</div>
+              <div class="weather-item-value">${cur.precipitation_mm} mm/hr</div>
+            </div>
+            <div class="weather-item">
+              <div class="weather-item-label">6h Accumulation</div>
+              <div class="weather-item-value">${cur.precipitation_6h_mm} mm</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -653,4 +775,109 @@ function getRiskColor(score) {
   if (score >= 0.25) return '#FFD600';
   if (score >= 0.10) return '#76FF03';
   return '#00E5FF';
+}
+
+// ── Flood Evacuation Simulation ──────────────────────────────────────────────
+let isFloodDetected = false;
+
+// Simulated shelter data (can also be loaded from JSON)
+const EMERGENCY_SHELTERS = [
+  { name: "Primary Safety Center", lat: 12.8812, lon: 77.5432, elevation: 25, status: "open" },
+  { name: "Community Hall Shelter", lat: 12.8820, lon: 77.5440, elevation: 20, status: "open" },
+  { name: "Government School Shelter", lat: 12.8798, lon: 77.5425, elevation: 18, status: "open" },
+  { name: "Relief Camp Center", lat: 12.8830, lon: 77.5418, elevation: 22, status: "open" },
+  { name: "City High School", lat: 21.175, lon: 72.84, elevation: 15, status: "open" },
+  { name: "Community Hall B", lat: 21.168, lon: 72.825, elevation: 12, status: "open" },
+  { name: "St. Mary Hospital", lat: 21.18, lon: 72.835, elevation: 20, status: "open" },
+  { name: "North Park Gym", lat: 21.19, lon: 72.85, elevation: 18, status: "closed" },
+  { name: "South Side Plaza", lat: 21.16, lon: 72.82, elevation: 14, status: "open" }
+];
+
+/**
+ * Distance between two points in km
+ */
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/**
+ * Triggers the automatic evacuation protocol
+ */
+window.simulateFlood = function(detected) {
+  isFloodDetected = detected;
+  if (isFloodDetected) {
+    showAlert("🚨 FLOOD EVENT DETECTED! Activating evacuation protocol...");
+    initiateEvacuation();
+  }
+};
+
+async function initiateEvacuation() {
+  const loc = userLatLng || originLatLng;
+  if (!loc) {
+    showAlert("Waiting for your location to determine evacuation route...");
+    // If we don't have location, try to get it again
+    requestUserLocation();
+    return;
+  }
+
+  showTooltip("Routing to nearest safe shelter within 1 km");
+  
+  // 1. Filter: Within 1km AND status is Open
+  const candidates = EMERGENCY_SHELTERS.filter(s => {
+    const dist = haversine(loc.lat, loc.lng, s.lat, s.lon);
+    return dist <= 1.0 && s.status === "open";
+  });
+
+  // If no candidates within 1km, fall back to any open shelter sorted by proximity/safety
+  const availableShelters = candidates.length > 0 
+    ? candidates 
+    : EMERGENCY_SHELTERS.filter(s => s.status === "open");
+
+  if (availableShelters.length === 0) {
+    showAlert("CRITICAL: No open evacuation shelters found in system!");
+    return;
+  }
+
+  // 2. Select Best: prioritize shortest distance, but also higher elevation
+  // We use a weighted score: Distance(km)*10 - Elevation(m)*0.5 (lower score is better)
+  availableShelters.sort((a, b) => {
+    const distA = haversine(loc.lat, loc.lng, a.lat, a.lon);
+    const distB = haversine(loc.lat, loc.lng, b.lat, b.lon);
+    
+    const scoreA = (distA * 10) - (a.elevation * 0.5);
+    const scoreB = (distB * 10) - (b.elevation * 0.5);
+    
+    return scoreA - scoreB;
+  });
+
+  const best = availableShelters[0];
+  destLatLng = { lat: best.lat, lng: best.lon };
+
+  // Update map UI
+  if (destMarker) map.removeLayer(destMarker);
+  destMarker = L.marker([best.lat, best.lon], { icon: DEST_ICON })
+    .addTo(map)
+    .bindPopup(`
+      <div style="min-width:140px">
+        <b style="color:var(--success)">SAFE SHELTER</b><br>
+        <b>${best.name}</b><br>
+        Elevation: ${best.elevation}m<br>
+        Distance: ${haversine(loc.lat, loc.lng, best.lat, best.lon).toFixed(2)} km
+      </div>
+    `);
+
+  document.getElementById('dest-label').textContent = best.name;
+  
+  // 3. Automatically trigger routing
+  setTimeout(() => {
+    findRoute();
+    map.setView([best.lat, best.lon], 15);
+  }, 500);
 }
