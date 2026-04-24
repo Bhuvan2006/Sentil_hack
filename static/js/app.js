@@ -27,6 +27,8 @@ let cities = [];
 let darkTileLayer = null;
 let lightTileLayer = null;
 let userLatLng = null; // Store user's current location
+let heatmapLayer = null;  // Leaflet.heat flood risk layer
+let shelterMarkers = [];  // All shelter markers on map
 
 // ── Leaflet map icons ─────────────────────────────────────────────────────
 const ORIGIN_ICON = L.divIcon({
@@ -244,12 +246,31 @@ function getLoadMessage(pct) {
   return 'City loaded!';
 }
 
+// Shelter icons
+const SHELTER_NEAREST_ICON = L.divIcon({
+  className: '',
+  html: `<div style="
+    font-size:32px;line-height:1;filter:drop-shadow(0 0 8px #00e5ff);
+    animation: pulse-shelter 1.5s ease-in-out infinite;
+  ">🛡️</div>`,
+  iconSize: [40, 40], iconAnchor: [20, 36],
+});
+const SHELTER_OTHER_ICON = L.divIcon({
+  className: '',
+  html: `<div style="font-size:18px;line-height:1;opacity:0.75">🏠</div>`,
+  iconSize: [24, 24], iconAnchor: [12, 20],
+});
+
 async function findNearestShelter() {
   const loc = originLatLng || userLatLng;
   if (!loc) {
     showAlert('Need your origin location first.');
     return;
   }
+
+  // Clear old shelter markers
+  shelterMarkers.forEach(m => map.removeLayer(m));
+  shelterMarkers = [];
 
   showTooltip('Searching for nearby shelters...');
   try {
@@ -262,19 +283,31 @@ async function findNearestShelter() {
       return;
     }
 
-    // Pick the closest one
-    const s = shelters[0];
-    destLatLng = { lat: s.lat, lng: s.lon };
-    
+    // Pick the closest one as primary destination
+    const nearest = shelters[0];
+    destLatLng = { lat: nearest.lat, lng: nearest.lon };
+
+    // Place all shelter markers — big for nearest, small for others
+    shelters.forEach((s, idx) => {
+      const icon = idx === 0 ? SHELTER_NEAREST_ICON : SHELTER_OTHER_ICON;
+      const label = idx === 0
+        ? `<b style="color:#00e5ff">🛡️ Nearest Shelter</b><br><b>${s.name}</b><br>${s.type.replace('_', ' ')}`
+        : `<b>${s.name}</b><br>${s.type.replace('_', ' ')}`;
+      const m = L.marker([s.lat, s.lon], { icon })
+        .addTo(map)
+        .bindPopup(`<div style="min-width:130px">${label}</div>`);
+      shelterMarkers.push(m);
+    });
+
+    // Update dest label and open popup for nearest
     if (destMarker) map.removeLayer(destMarker);
-    destMarker = L.marker([s.lat, s.lon], { icon: DEST_ICON })
-      .addTo(map)
-      .bindPopup(`<b>Safe Shelter</b><br>${s.name}<br>${s.type.replace('_', ' ')}`);
-    
-    document.getElementById('dest-label').textContent = s.name;
-    map.setView([s.lat, s.lon], 15);
-    
-    showTooltip(`Found shelter: ${s.name}. Click "Find Safe Route" to navigate.`);
+    destMarker = null;
+    shelterMarkers[0].openPopup();
+
+    document.getElementById('dest-label').textContent = nearest.name;
+    map.setView([nearest.lat, nearest.lon], 15);
+
+    showTooltip(`Found ${shelters.length} shelter(s). Nearest: ${nearest.name}. Click "Find Safe Route" to navigate.`);
     document.getElementById('find-route-btn').disabled = false;
   } catch (e) {
     showAlert(`Error searching shelters: ${e.message}`);
@@ -286,8 +319,9 @@ async function onCityLoaded(status) {
   document.getElementById('chip-city').textContent = status.city?.split(',')[0] || 'City';
   updateRiskChip(status.rainfall_score, status.risk_level);
 
-  // Fetch and render road network
+  // Fetch and render road network (ghost underlay) + heatmap
   await renderRoadNetwork();
+  await renderFloodHeatmap();
 
   // Update weather sidebar
   if (currentCity) {
@@ -297,7 +331,7 @@ async function onCityLoaded(status) {
   setTimeout(hideLoadingUI, 800);
 }
 
-// ── Road network GeoJSON overlay ─────────────────────────────────────────────
+// ── Road network GeoJSON overlay (faded ghost underlay) ──────────────────────
 async function renderRoadNetwork() {
   try {
     const res = await fetch(`${API}/api/road-network`);
@@ -307,13 +341,13 @@ async function renderRoadNetwork() {
 
     if (roadLayer) map.removeLayer(roadLayer);
 
+    // Ghost underlay: all edges nearly invisible — heatmap takes over for danger
     roadLayer = L.geoJSON(geojson, {
-      style: feature => ({
-        color: feature.properties.risk_color || '#00E5FF',
-        weight: feature.properties.risk_class >= 3 ? 3.5 : 2,
-        opacity: feature.properties.risk_class === 0 ? 0.45 :
-                 feature.properties.risk_class === 4 ? 0.85 : 0.7,
-        dashArray: feature.properties.risk_class === 4 ? '6, 4' : null,
+      style: () => ({
+        color: '#4fc3f7',
+        weight: 1,
+        opacity: 0.08,
+        dashArray: null,
       }),
       onEachFeature: (feature, layer) => {
         const p = feature.properties;
@@ -324,17 +358,40 @@ async function renderRoadNetwork() {
             <span style="color:#8aadcc">${p.highway || ''} · ${p.length_m}m</span>
           </div>
         `);
-        layer.on('mouseover', function(e) {
-          this.setStyle({ weight: 4, opacity: 1 });
-        });
-        layer.on('mouseout', function(e) {
-          roadLayer.resetStyle(this);
-        });
       }
     }).addTo(map);
 
   } catch (e) {
     console.error('Road network render error:', e);
+  }
+}
+
+// ── Flood Risk Heatmap ────────────────────────────────────────────────────────
+async function renderFloodHeatmap() {
+  try {
+    const res = await fetch(`${API}/api/flood-zones`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.points || data.points.length === 0) return;
+
+    if (heatmapLayer) map.removeLayer(heatmapLayer);
+
+    heatmapLayer = L.heatLayer(data.points, {
+      radius: 28,
+      blur: 22,
+      maxZoom: 17,
+      max: 1.0,
+      gradient: {
+        0.0:  'transparent',
+        0.25: '#FFD600',   // moderate — yellow
+        0.55: '#FF6D00',   // high — orange
+        1.0:  '#FF1744',   // critical — red
+      },
+      minOpacity: 0.35,
+    }).addTo(map);
+
+  } catch (e) {
+    console.error('Flood heatmap render error:', e);
   }
 }
 
@@ -345,15 +402,19 @@ async function findRoute() {
     return;
   }
 
-  document.getElementById('find-route-btn').disabled = true;
-  document.getElementById('find-route-btn').textContent = 'Computing…';
+  const routeBtn = document.getElementById('find-route-btn');
+  routeBtn.disabled = true;
+  routeBtn.innerHTML = '<span class="spinner-small"></span> Calculating safe route...';
+  
+  // Show tooltip for feedback
+  showTooltip('Analyzing terrain and flood risks...');
 
   // Clear old paths
   if (safePathLayer)   { map.removeLayer(safePathLayer);   safePathLayer = null; }
   if (normalPathLayer) { map.removeLayer(normalPathLayer); normalPathLayer = null; }
 
   try {
-    const res = await fetch(`${API}/api/route`, {
+    const res  = await fetch(`${API}/api/route`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -361,28 +422,32 @@ async function findRoute() {
         dest_lat:   destLatLng.lat,   dest_lon:   destLatLng.lng,
       })
     });
-    const data = await res.json();
 
-    if (!data.success) {
-      showAlert(data.error || 'Routing failed.');
+    // Always parse JSON — server returns error details in body even on 500
+    const data = await res.json().catch(() => ({ success: false, error: `Server error (HTTP ${res.status})` }));
+
+    if (!res.ok || !data.success) {
+      showAlert(`Routing error: ${data.error || 'Unknown server error'}`);
       return;
     }
 
     // Draw normal path (grey dashed)
-    if (data.normal_path?.coordinates) {
+    if (data.normal_path?.coordinates?.length) {
       normalPathLayer = L.polyline(data.normal_path.coordinates, {
         color: '#888888', weight: 4, opacity: 0.6, dashArray: '8, 6'
       }).addTo(map).bindPopup('<b>🛣 Normal Shortest Path</b>');
     }
 
     // Draw safe path (green animated)
-    if (data.safe_path?.coordinates) {
+    if (data.safe_path?.coordinates?.length) {
       safePathLayer = L.polyline(data.safe_path.coordinates, {
         color: '#00ff88', weight: 5, opacity: 0.9
       }).addTo(map).bindPopup('<b>✅ Flood-Safe Route</b>');
 
       // Fit bounds to safe path
       map.fitBounds(safePathLayer.getBounds().pad(0.15));
+    } else if (data.safe_path?.error) {
+      showAlert(`Safe route: ${data.safe_path.error}`);
     }
 
     renderRouteResult(data);
@@ -396,8 +461,8 @@ async function findRoute() {
   } catch (e) {
     showAlert(`Route request failed: ${e.message}`);
   } finally {
-    document.getElementById('find-route-btn').disabled = false;
-    document.getElementById('find-route-btn').textContent = 'Find Safe Route';
+    routeBtn.disabled = false;
+    routeBtn.textContent = 'Find Safe Route';
   }
 }
 
@@ -450,6 +515,8 @@ function clearRoute() {
   if (normalPathLayer) { map.removeLayer(normalPathLayer); normalPathLayer = null; }
   if (originMarker)    { map.removeLayer(originMarker);    originMarker = null; }
   if (destMarker)      { map.removeLayer(destMarker);      destMarker = null; }
+  shelterMarkers.forEach(m => map.removeLayer(m));
+  shelterMarkers = [];
   originLatLng = destLatLng = null;
   clickMode = 'origin';
   document.getElementById('origin-label').textContent = 'Not set';
@@ -712,7 +779,7 @@ function setStatusUI(state, msg) {
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function showPanel(name) {
-  ['map', 'weather', 'simulation'].forEach(p => {
+  ['map', 'weather', 'assessment', 'simulation'].forEach(p => {
     const btn   = document.getElementById(`nav-${p}`);
     const panel = document.getElementById(`${p}-panel`);
     const isActive = p === name;
@@ -728,6 +795,7 @@ function showPanel(name) {
   if (tooltip) tooltip.classList.add('hidden');
 
   if (name === 'map') { setTimeout(() => map?.invalidateSize(), 50); }
+  if (name === 'assessment') { fetchDisasterAssessment(); }
 }
 
 function updateProgress(pct, msg) {
@@ -775,6 +843,179 @@ function getRiskColor(score) {
   if (score >= 0.25) return '#FFD600';
   if (score >= 0.10) return '#76FF03';
   return '#00E5FF';
+}
+
+
+// -- Disaster Management Assessment ------------------------------------------
+async function fetchDisasterAssessment() {
+  const el = document.getElementById('assessment-content');
+  if (!el) return;
+  el.innerHTML = '<div class="assess-loading"><div class="spinner"></div><p style="margin-top:16px;color:var(--text-secondary)">Calculating disaster impact...</p></div>';
+  try {
+    const res  = await fetch('/api/disaster-assessment');
+    const data = await res.json();
+    if (data.error) { el.innerHTML = '<div class="placeholder-text large">' + data.error + '</div>'; return; }
+    renderAssessmentPanel(data);
+  } catch (e) {
+    el.innerHTML = '<div class="placeholder-text large">Failed to load: ' + e.message + '</div>';
+  }
+}
+
+function renderAssessmentPanel(d) {
+  const el = document.getElementById('assessment-content');
+  const tc = d.threat_color;
+  const intensityPct = Math.round(d.flood_intensity * 100);
+  const fmt   = n => Number(n).toLocaleString('en-IN');
+  const fmtCr = n => n >= 1000 ? '\u20b9' + (n/100).toFixed(1) + 'K Cr' : '\u20b9' + n + ' Cr';
+
+  const threatBg = {
+    CATASTROPHIC: 'linear-gradient(135deg,#7b0000,#c62828)',
+    SEVERE:       'linear-gradient(135deg,#bf360c,#e64a19)',
+    MODERATE:     'linear-gradient(135deg,#e65100,#f57c00)',
+    LOW:          'linear-gradient(135deg,#33691e,#558b2f)',
+    MINIMAL:      'linear-gradient(135deg,#006064,#00838f)',
+  }[d.threat_level] || 'linear-gradient(135deg,#1a73e8,#0d47a1)';
+
+  const threatIcon = {CATASTROPHIC:'&#128308;',SEVERE:'&#128992;',MODERATE:'&#128993;',LOW:'&#128994;',MINIMAL:'&#128309;'}[d.threat_level] || '&#9899;';
+  const maxDmg  = Math.max(d.property_damage.residential_cr, d.property_damage.commercial_cr, d.property_damage.infrastructure_cr, 1);
+  const resPct  = Math.round(d.property_damage.residential_cr    / maxDmg * 100);
+  const comPct  = Math.round(d.property_damage.commercial_cr     / maxDmg * 100);
+  const infrPct = Math.round(d.property_damage.infrastructure_cr / maxDmg * 100);
+  const roadPct = Math.min(100, d.infrastructure.high_risk_pct);
+
+  const RECS = {
+    CATASTROPHIC: ['Initiate mass evacuation immediately','Deploy all emergency medical teams','Request aerial search & rescue support','Broadcast emergency alerts on all channels','Close all major roads and bridges'],
+    SEVERE:       ['Evacuate all flood-prone zones','Pre-position fire & rescue teams','Open all designated emergency shelters','Send cell-broadcast warning messages','Restrict non-essential traffic'],
+    MODERATE:     ['Issue public flood advisory','Prepare household emergency kits','Identify nearest shelter locations','Monitor water levels every 2 hours','Ensure backup power for critical infrastructure'],
+    LOW:          ['Monitor rainfall forecast hourly','Clear drains and gutters','Review emergency contact numbers','Keep emergency radio accessible'],
+    MINIMAL:      ['Conditions stable - routine monitoring active','Review and update flood preparedness plans'],
+  }[d.threat_level] || [];
+
+  const phases = [
+    {label:'Immediate Response', sub:'0 - 72 hours',   active:true},
+    {label:'Search & Rescue',    sub:'1 - 7 days',     active: d.flood_intensity > 0.1},
+    {label:'Relief & Rehab',     sub:'1 - 4 weeks',    active: d.flood_intensity > 0.25},
+    {label:'Full Recovery',      sub:'~' + d.recovery.estimated_days + ' days', active:false},
+  ];
+
+  const phasesHTML = phases.map((p,i) =>
+    '<div class="assess-phase ' + (p.active ? 'phase-active' : '') + '">'
+    + '<div class="assess-phase-dot"></div>'
+    + '<div><div class="phase-label">' + p.label + '</div>'
+    + '<div class="phase-sub">' + p.sub + '</div></div></div>'
+    + (i < phases.length - 1 ? '<div class="assess-phase-line"></div>' : '')
+  ).join('');
+
+  const recsHTML = RECS.map((r, i) =>
+    '<div class="assess-rec" style="animation-delay:' + (i*0.08) + 's">'
+    + '<span class="rec-num">' + (i+1) + '</span>' + r + '</div>'
+  ).join('');
+
+  const statCards = [
+    {icon:'&#128128;', num: fmt(d.fatalities.estimated_deaths),    label:'Estimated Deaths',          sub:'UN-HABITAT lethality rate applied',       color:'#FF1744'},
+    {icon:'&#127973;', num: fmt(d.fatalities.estimated_injured),   label:'Injured / Hospitalised',    sub:'~6x injury-to-fatality ratio (NDMA)',     color:'#FF6D00'},
+    {icon:'&#127957;', num: fmt(d.fatalities.estimated_displaced), label:'Displaced Persons',         sub:'Require emergency shelter & relief',       color:'#FFD600'},
+    {icon:'&#128101;', num: fmt(d.fatalities.total_affected),      label:'Total Exposed Population',  sub:'Within ' + d.area.affected_km2 + ' km\u00b2 flood zone', color:'#00E5FF'},
+  ].map(c =>
+    '<div class="assess-stat-card" style="--ca:' + c.color + '">'
+    + '<div class="asc-icon">' + c.icon + '</div>'
+    + '<div class="asc-num" style="color:' + c.color + '">' + c.num + '</div>'
+    + '<div class="asc-lbl">' + c.label + '</div>'
+    + '<div class="asc-sub">' + c.sub + '</div></div>'
+  ).join('');
+
+  const infraCards = [
+    {val: d.infrastructure.roads_affected_km + ' km', lbl:'Roads Affected',    color:'#FF6D00'},
+    {val: d.infrastructure.critical_roads,             lbl:'Critical Segments', color:'#FF1744'},
+    {val: d.infrastructure.bridges_at_risk,            lbl:'Bridges at Risk',   color:'#FFD600'},
+    {val: d.infrastructure.high_risk_pct + '%',        lbl:'Network Impacted',  color:'#00E5FF'},
+  ].map(c =>
+    '<div class="assess-infra-card"><div class="aic-val" style="color:' + c.color + '">' + c.val + '</div>'
+    + '<div class="aic-lbl">' + c.lbl + '</div></div>'
+  ).join('');
+
+  el.innerHTML =
+    // HERO
+    '<div class="assess-hero">'
+    + '<div class="assess-threat-badge" style="background:' + threatBg + '">'
+    +   '<div class="assess-threat-icon">' + threatIcon + '</div>'
+    +   '<div class="assess-threat-level">' + d.threat_level + '</div>'
+    +   '<div class="assess-threat-city">' + (d.city || '').split(',')[0] + '</div>'
+    +   '<div class="assess-threat-sub">Flood Intensity ' + intensityPct + '%</div>'
+    + '</div>'
+    + '<div class="assess-gauge-wrap">'
+    +   '<svg viewBox="0 0 200 120" style="width:100%;max-width:260px">'
+    +     '<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="16" stroke-linecap="round"/>'
+    +     '<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="' + tc + '" stroke-width="16" stroke-linecap="round" stroke-dasharray="' + (d.flood_intensity * 251.2) + ' 251.2"/>'
+    +     '<text x="100" y="90"  text-anchor="middle" fill="' + tc + '" font-size="30" font-weight="800" font-family="Inter,sans-serif">' + intensityPct + '%</text>'
+    +     '<text x="100" y="112" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="9" font-family="Inter,sans-serif">FLOOD RISK INTENSITY</text>'
+    +   '</svg>'
+    +   '<div class="assess-gauge-pills">'
+    +     '<div class="assess-gpill"><span>' + d.area.affected_km2 + ' km\u00b2</span><label>Affected Area</label></div>'
+    +     '<div class="assess-gpill"><span>' + d.infrastructure.high_risk_pct + '%</span><label>Roads at Risk</label></div>'
+    +     '<div class="assess-gpill"><span>' + d.recovery.estimated_days + 'd</span><label>Recovery Est.</label></div>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="assess-weather-snap">'
+    +   '<div class="assess-snap-title">&#9928; Live Conditions</div>'
+    +   '<div class="assess-snap-grid">'
+    +     '<div class="assess-snap-item">&#127783;<b>' + d.weather_snapshot.precipitation_mm + ' mm/hr</b><small>Rainfall</small></div>'
+    +     '<div class="assess-snap-item">&#128167;<b>' + d.weather_snapshot.precipitation_6h_mm + ' mm</b><small>6h Total</small></div>'
+    +     '<div class="assess-snap-item">&#128168;<b>' + d.weather_snapshot.wind_speed + ' km/h</b><small>Wind</small></div>'
+    +     '<div class="assess-snap-item">&#127777;<b>' + d.weather_snapshot.humidity + '%</b><small>Humidity</small></div>'
+    +   '</div>'
+    +   '<div class="assess-risk-pill" style="background:' + tc + '22;border:1px solid ' + tc + ';color:' + tc + '">Risk Level: ' + d.weather_snapshot.risk_level + '</div>'
+    + '</div>'
+    + '</div>'
+
+    // CASUALTIES
+    + '<div class="assess-section-title">&#128680; Human Impact Estimate</div>'
+    + '<div class="assess-stat-grid">' + statCards + '</div>'
+
+    // DAMAGE
+    + '<div class="assess-section-title">&#127962; Property &amp; Economic Damage</div>'
+    + '<div class="assess-dmg-layout">'
+    +   '<div class="assess-dmg-bars">'
+    +     '<div class="assess-bar-row"><div class="assess-bar-meta"><span>&#127968; Residential</span><b style="color:#FF6D00">' + fmtCr(d.property_damage.residential_cr) + '</b></div><div class="assess-bar-track"><div class="assess-bar-fill" style="width:' + resPct + '%;background:#FF6D00"></div></div></div>'
+    +     '<div class="assess-bar-row"><div class="assess-bar-meta"><span>&#127970; Commercial</span><b style="color:#FFD600">' + fmtCr(d.property_damage.commercial_cr) + '</b></div><div class="assess-bar-track"><div class="assess-bar-fill" style="width:' + comPct + '%;background:#FFD600"></div></div></div>'
+    +     '<div class="assess-bar-row"><div class="assess-bar-meta"><span>&#128739; Infrastructure</span><b style="color:#76FF03">' + fmtCr(d.property_damage.infrastructure_cr) + '</b></div><div class="assess-bar-track"><div class="assess-bar-fill" style="width:' + infrPct + '%;background:#76FF03"></div></div></div>'
+    +   '</div>'
+    +   '<div class="assess-dmg-total">'
+    +     '<div class="adt-label">Total Economic Loss</div>'
+    +     '<div class="adt-value" style="color:' + tc + '">' + fmtCr(d.property_damage.total_cr) + '</div>'
+    +     '<div class="adt-sub">Recovery Budget Needed</div>'
+    +     '<div class="adt-recovery">' + fmtCr(d.property_damage.recovery_cost_cr) + '</div>'
+    +     '<div class="adt-note">NDMA urban flood damage formula</div>'
+    +   '</div>'
+    + '</div>'
+
+    // INFRASTRUCTURE
+    + '<div class="assess-section-title">&#128739; Infrastructure Status</div>'
+    + '<div class="assess-infra-grid">' + infraCards + '</div>'
+    + '<div style="margin:0 0 28px">'
+    +   '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:7px"><span>Road Network at High Risk</span><span>' + d.infrastructure.high_risk_roads + ' / ' + d.infrastructure.total_roads + ' segments</span></div>'
+    +   '<div class="assess-bar-track" style="height:10px;border-radius:6px"><div class="assess-bar-fill" style="width:' + roadPct + '%;background:linear-gradient(90deg,#FFD600,#FF6D00,#FF1744);border-radius:6px;height:10px"></div></div>'
+    + '</div>'
+
+    // RECOVERY
+    + '<div class="assess-section-title">&#128260; Recovery Timeline</div>'
+    + '<div class="assess-recovery-wrap">'
+    +   '<div class="assess-timeline">' + phasesHTML + '</div>'
+    +   '<div class="assess-rc-box">'
+    +     '<div class="adt-label">Recovery Cost</div>'
+    +     '<div class="adt-value" style="color:' + tc + '">' + fmtCr(d.recovery.recovery_cost_cr) + '</div>'
+    +     '<div class="adt-note">' + d.recovery.estimated_days + ' days to full restoration</div>'
+    +   '</div>'
+    + '</div>'
+
+    // RECS
+    + '<div class="assess-section-title">&#128203; Recommended Actions</div>'
+    + '<div class="assess-recs">' + recsHTML + '</div>'
+
+    + '<div class="assess-footer">'
+    +   '<span>&#9888; Projections based on live weather + road network analysis (NDMA / UN-HABITAT methodology).</span>'
+    +   '<span>Updated: ' + new Date().toLocaleTimeString() + '</span>'
+    + '</div>';
 }
 
 // ── Flood Evacuation Simulation ──────────────────────────────────────────────

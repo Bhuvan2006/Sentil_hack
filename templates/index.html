@@ -41,6 +41,7 @@
       <nav class="topbar-nav">
         <button class="nav-tab active" id="nav-map" onclick="showPanel('map')">Map</button>
         <button class="nav-tab" id="nav-weather" onclick="showPanel('weather')">Weather</button>
+        <button class="nav-tab" id="nav-assessment" onclick="showPanel('assessment')" style="color:#ff6d00;font-weight:700">⚠ Assessment</button>
         <button class="nav-tab" id="nav-simulation" onclick="showPanel('simulation')">Simulation</button>
       </nav>
     </div>
@@ -127,13 +128,12 @@
     <section class="card">
       <div class="card-label">Risk Legend</div>
       <div class="legend-list">
-        <div class="legend-row"><span class="legend-pip" style="background:#00E5FF"></span><span class="legend-text">Safe</span></div>
-        <div class="legend-row"><span class="legend-pip" style="background:#76FF03"></span><span class="legend-text">Low Risk</span></div>
-        <div class="legend-row"><span class="legend-pip" style="background:#FFD600"></span><span class="legend-text">Moderate Risk</span></div>
-        <div class="legend-row"><span class="legend-pip" style="background:#FF6D00"></span><span class="legend-text">High Risk</span></div>
-        <div class="legend-row"><span class="legend-pip" style="background:#FF1744"></span><span class="legend-text">Critical</span></div>
+        <div class="legend-row"><span class="legend-pip" style="background:rgba(0,229,255,0.25);border:1px solid #00E5FF"></span><span class="legend-text">Safe (faded)</span></div>
+        <div class="legend-row"><span class="legend-pip" style="background:rgba(255,23,68,0.6)"></span><span class="legend-text">Flood Heatmap</span></div>
         <div class="legend-row"><span class="legend-pip legend-pip--dashed" style="background:#00FF88"></span><span class="legend-text">Safe Route</span></div>
         <div class="legend-row"><span class="legend-pip legend-pip--dashed" style="background:#888"></span><span class="legend-text">Normal Route</span></div>
+        <div class="legend-row"><span style="font-size:18px;line-height:1">🛡️</span><span class="legend-text">Nearest Shelter</span></div>
+        <div class="legend-row"><span style="font-size:14px;line-height:1">🏠</span><span class="legend-text">Other Shelters</span></div>
       </div>
     </section>
 
@@ -202,6 +202,22 @@
     </div>
   </div>
 
+  <!-- ══════════════════ DISASTER ASSESSMENT PANEL ══════════════════ -->
+  <div class="full-panel-backdrop hidden" id="assessment-panel">
+    <div class="full-panel">
+      <div class="full-panel-header">
+        <h2 class="full-panel-title" id="assess-title">⚠ Disaster Impact Assessment</h2>
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="btn" id="assess-refresh-btn" onclick="fetchDisasterAssessment()" style="width:auto;padding:6px 16px;background:var(--accent);color:#fff;font-size:12px">↻ Refresh</button>
+          <button class="panel-close-btn" onclick="showPanel('map')">Back to Map</button>
+        </div>
+      </div>
+      <div id="assessment-content">
+        <div class="placeholder-text large">Load a city first to see the disaster impact assessment.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════════════════ ALERT BANNER ══════════════════ -->
   <div class="alert-banner hidden" id="alert-banner">
     <span class="alert-icon">!</span>
@@ -211,6 +227,8 @@
 
   <!-- ══════════════════ SCRIPTS ══════════════════ -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet.heat for flood risk heatmap -->
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
   <script src="/static/js/app.js"></script>
   <script>
     // ── Theme toggle ──
