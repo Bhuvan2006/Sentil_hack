@@ -12,6 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Google+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
   <!-- Custom CSS -->
   <link rel="stylesheet" href="/static/css/style.css" />
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
@@ -53,6 +55,11 @@
         <div class="status-dot" id="status-dot"></div>
         <span id="status-text">Initializing…</span>
       </div>
+
+      <!-- Auth Button -->
+      <button class="btn btn-primary" id="auth-btn" onclick="openAuthModal()" style="width: auto; padding: 6px 16px; margin-right: 12px;">
+        Login / Sign Up
+      </button>
 
       <!-- Theme toggle -->
       <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
@@ -229,6 +236,82 @@
       </div>
       <div id="assessment-content">
         <div class="placeholder-text large">Load a city first to see the disaster impact assessment.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════ AUTH MODAL ══════════════════ -->
+  <div class="full-panel-backdrop hidden" id="auth-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-title">Welcome to FloodNav</h2>
+        <button class="panel-close-btn" onclick="closeAuthModal()">✕</button>
+      </div>
+      
+      <div id="auth-forms">
+        <!-- Login Form -->
+        <form id="login-form" class="auth-form" onsubmit="handleLogin(event)">
+          <div class="input-group">
+            <label>Email</label>
+            <input type="email" id="login-email" required placeholder="name@example.com" class="select-input">
+          </div>
+          <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="login-password" required placeholder="••••••••" class="select-input">
+          </div>
+          <button type="submit" class="btn btn-primary">Login</button>
+          <p class="auth-switch">Don't have an account? <a href="#" onclick="toggleAuthForm('signup')">Sign Up</a></p>
+        </form>
+
+        <!-- Signup Form -->
+        <form id="signup-form" class="auth-form hidden" onsubmit="handleSignup(event)">
+          <div class="input-group">
+            <label>Full Name</label>
+            <input type="text" id="signup-name" required placeholder="John Doe" class="select-input">
+          </div>
+          <div class="input-group">
+            <label>Email</label>
+            <input type="email" id="signup-email" required placeholder="name@example.com" class="select-input">
+          </div>
+          <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="signup-password" required placeholder="••••••••" class="select-input">
+          </div>
+          <button type="submit" class="btn btn-primary">Create Account</button>
+          <p class="auth-switch">Already have an account? <a href="#" onclick="toggleAuthForm('login')">Login</a></p>
+        </form>
+      </div>
+
+      <!-- Profile Form (Visible after login) -->
+      <div id="profile-section" class="hidden">
+        <div class="profile-info">
+          <p>Logged in as: <strong id="user-email-display"></strong></p>
+        </div>
+        <form id="profile-form" onsubmit="updateProfile(event)">
+          <div class="input-group">
+            <label>Age</label>
+            <input type="number" id="profile-age" placeholder="Your age" class="select-input">
+          </div>
+          <div class="input-group">
+            <label>Disability (if any)</label>
+            <select id="profile-disability" class="select-input">
+              <option value="none">None</option>
+              <option value="blind">Blind / Visually Impaired</option>
+              <option value="deaf">Deaf / Hard of Hearing</option>
+              <option value="mobility">Mobility Impairment</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="voice-assistant-setting" id="voice-setting-wrap">
+            <label class="switch-label">
+              <input type="checkbox" id="voice-assistant-toggle">
+              <span>Enable Voice Safety Assistant</span>
+            </label>
+            <p class="hint-text">Automatically provides audio alerts for blind users during navigation.</p>
+          </div>
+          <button type="submit" class="btn btn-primary">Update Profile</button>
+          <button type="button" class="btn btn-ghost" onclick="handleLogout()" style="color: var(--danger); margin-top: 12px;">Logout</button>
+        </form>
       </div>
     </div>
   </div>

@@ -30,6 +30,19 @@ let userLatLng = null; // Store user's current location
 let heatmapLayer = null;  // Leaflet.heat flood risk layer
 let shelterMarkers = [];  // All shelter markers on map
 
+// ── Supabase Setup ────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://jhljshalsfxpboncbuqg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpobGpzaGFsc2Z4cGJvbmNidXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDYzNDAsImV4cCI6MjA5MjYyMjM0MH0.lECjW38A8Y8y8Q_v4YvtiIYkLIH28uI9yWjMdoMOKOQ';
+let supabaseClient = null;
+if (typeof supabase !== 'undefined') {
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+} else {
+  console.error('Supabase library not loaded. Auth features will be disabled.');
+}
+
+let userProfile = null;
+let voiceEnabled = false;
+
 // ── Leaflet map icons ─────────────────────────────────────────────────────
 const ORIGIN_ICON = L.divIcon({
   className: '',
@@ -58,7 +71,17 @@ document.addEventListener('DOMContentLoaded', () => {
   loadCities();
   startStatusPoll();
   requestUserLocation(); // Get current location on startup
+  checkUserSession();   // Check if user is logged in
 });
+
+function speak(text) {
+  if (!voiceEnabled || !window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.9;
+  utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
+}
 
 function requestUserLocation() {
   if (!navigator.geolocation) {
@@ -323,6 +346,13 @@ async function onCityLoaded(status) {
   await renderRoadNetwork();
   await renderFloodHeatmap();
 
+  // Voice alert for blind users
+  if (userProfile?.disability_type === 'blind' || voiceEnabled) {
+    const risk = status.risk_level;
+    const score = Math.round(status.rainfall_score * 100);
+    speak(`Current location: ${status.city}. Flood risk is ${risk} at ${score} percent. Please stay on high ground.`);
+  }
+
   // Update weather sidebar
   if (currentCity) {
     fetchAndRenderWeather(currentCity.lat, currentCity.lon);
@@ -455,7 +485,11 @@ async function findRoute() {
     // Check for risk alert
     const maxRisk = data.safe_path?.summary?.max_risk_class ?? 0;
     if (maxRisk >= 3) {
-      showAlert(`⚠️ Safe route passes through ${maxRisk === 4 ? 'critically' : 'highly'} risky zones — proceed with extreme caution!`);
+      const msg = `Warning: Safe route passes through ${maxRisk === 4 ? 'critically' : 'highly'} risky zones. Proceed with extreme caution!`;
+      showAlert(msg);
+      speak(msg);
+    } else {
+      speak("Safe route calculated. Navigation path is clear of major flooding.");
     }
 
   } catch (e) {
@@ -1089,7 +1123,9 @@ function haversine(lat1, lon1, lat2, lon2) {
 window.simulateFlood = function(detected) {
   isFloodDetected = detected;
   if (isFloodDetected) {
-    showAlert("🚨 FLOOD EVENT DETECTED! Activating evacuation protocol...");
+    const msg = "Flood event detected! Activating evacuation protocol. Please listen for safety instructions.";
+    showAlert("🚨 " + msg);
+    speak(msg);
     initiateEvacuation();
   }
 };
@@ -1097,7 +1133,9 @@ window.simulateFlood = function(detected) {
 async function initiateEvacuation() {
   const loc = userLatLng || originLatLng;
   if (!loc) {
-    showAlert("Waiting for your location to determine evacuation route...");
+    const msg = "Waiting for your location to determine evacuation route.";
+    showAlert(msg);
+    speak(msg);
     // If we don't have location, try to get it again
     requestUserLocation();
     return;
@@ -1153,6 +1191,7 @@ async function initiateEvacuation() {
   
   // 3. Automatically trigger routing
   setTimeout(() => {
+    speak(`Shelter found: ${best.name}. It is at an elevation of ${best.elevation} meters. Calculating safest path now.`);
     findRoute();
     map.setView([best.lat, best.lon], 15);
   }, 500);
@@ -1232,4 +1271,158 @@ function renderNewsPanel(articles) {
     </div>
   `;
   container.innerHTML = html;
+}
+
+// -- Auth & Profile Handlers ------------------------------------------------
+async function checkUserSession() {
+  if (!supabaseClient) return;
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session) {
+    updateAuthUI(session.user);
+    fetchUserProfile(session.user.id);
+  }
+}
+
+function openAuthModal() {
+  const modal = document.getElementById('auth-modal');
+  if (modal) modal.classList.remove('hidden');
+}
+
+function closeAuthModal() {
+  const modal = document.getElementById('auth-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function toggleAuthForm(mode) {
+  const loginForm = document.getElementById('login-form');
+  const signupForm = document.getElementById('signup-form');
+  const title = document.getElementById('modal-title');
+  
+  if (mode === 'signup') {
+    if (loginForm) loginForm.classList.add('hidden');
+    if (signupForm) signupForm.classList.remove('hidden');
+    if (title) title.textContent = 'Join FloodNav';
+  } else {
+    if (loginForm) loginForm.classList.remove('hidden');
+    if (signupForm) signupForm.classList.add('hidden');
+    if (title) title.textContent = 'Welcome Back';
+  }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  if (!supabaseClient) { showAlert('Auth system unavailable'); return; }
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    showAlert('Login failed: ' + error.message);
+  } else {
+    updateAuthUI(data.user);
+    fetchUserProfile(data.user.id);
+  }
+}
+
+async function handleSignup(e) {
+  e.preventDefault();
+  if (!supabaseClient) { showAlert('Auth system unavailable'); return; }
+  const name = document.getElementById('signup-name').value;
+  const email = document.getElementById('signup-email').value;
+  const password = document.getElementById('signup-password').value;
+  
+  const { data, error } = await supabaseClient.auth.signUp({
+    email, password,
+    options: { data: { full_name: name } }
+  });
+  
+  if (error) {
+    showAlert('Signup failed: ' + error.message);
+  } else {
+    showAlert('Check your email for the confirmation link!');
+    toggleAuthForm('login');
+  }
+}
+
+async function handleLogout() {
+  if (!supabaseClient) return;
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    showAlert('Logout error: ' + error.message);
+  } else {
+    location.reload();
+  }
+}
+
+function updateAuthUI(user) {
+  const btn = document.getElementById('auth-btn');
+  if (btn) btn.textContent = 'Profile';
+  
+  const forms = document.getElementById('auth-forms');
+  if (forms) forms.classList.add('hidden');
+  
+  const section = document.getElementById('profile-section');
+  if (section) section.classList.remove('hidden');
+  
+  const emailDisplay = document.getElementById('user-email-display');
+  if (emailDisplay) emailDisplay.textContent = user.email;
+  
+  const title = document.getElementById('modal-title');
+  if (title) title.textContent = 'Your Profile';
+}
+
+async function fetchUserProfile(userId) {
+  const { data, error } = await supabaseClient
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+    
+  if (data) {
+    userProfile = data;
+    const ageInput = document.getElementById('profile-age');
+    const disabilitySelect = document.getElementById('profile-disability');
+    const voiceToggle = document.getElementById('voice-assistant-toggle');
+    
+    if (ageInput) ageInput.value = data.age || '';
+    if (disabilitySelect) disabilitySelect.value = data.disability_type || 'none';
+    
+    // Auto-enable voice if blind
+    if (data.disability_type === 'blind') {
+      if (voiceToggle) voiceToggle.checked = true;
+      voiceEnabled = true;
+      speak("Voice safety assistant activated. I will provide audio alerts during flood events.");
+    }
+  }
+}
+
+async function updateProfile(e) {
+  e.preventDefault();
+  if (!supabaseClient) { showAlert('Auth system unavailable'); return; }
+  const age = document.getElementById('profile-age').value;
+  const disability = document.getElementById('profile-disability').value;
+  const voiceToggle = document.getElementById('voice-assistant-toggle');
+  if (voiceToggle) voiceEnabled = voiceToggle.checked;
+  
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  const { error } = await supabaseClient
+    .from('profiles')
+    .upsert({
+      id: user.id,
+      age: parseInt(age),
+      disability_type: disability,
+      updated_at: new Date()
+    });
+    
+  if (error) {
+    showAlert('Profile update failed: ' + error.message);
+  } else {
+    showAlert('Profile updated successfully!');
+    userProfile = { age, disability_type: disability };
+    if (disability === 'blind' && !voiceEnabled) {
+       if (voiceToggle) voiceToggle.checked = true;
+       voiceEnabled = true;
+    }
+    closeAuthModal();
+  }
 }

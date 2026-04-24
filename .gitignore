@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Supabase
+.supabase/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+graphs/
+data/
