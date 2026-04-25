@@ -95,18 +95,18 @@ function requestUserLocation() {
       const { latitude, longitude } = pos.coords;
       userLatLng = { lat: latitude, lng: longitude };
       originLatLng = userLatLng; // Automatically set user as origin
-      
+
       // Center map and load city for this location
       map.setView([latitude, longitude], 14);
       loadCity(latitude, longitude);
-      
+
       // Update origin label
       document.getElementById('origin-label').textContent = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
       if (originMarker) map.removeLayer(originMarker);
       originMarker = L.marker([latitude, longitude], { icon: ORIGIN_ICON })
         .addTo(map)
         .bindPopup(`<b>Your Location</b>`);
-      
+
       clickMode = 'dest';
       showTooltip('Location found. Click map to set destination or find shelter.');
     },
@@ -147,7 +147,7 @@ function initMap() {
 function switchMapTile() {
   const theme = document.documentElement.getAttribute('data-theme');
   if (theme === 'light') {
-    if (map.hasLayer(darkTileLayer))  map.removeLayer(darkTileLayer);
+    if (map.hasLayer(darkTileLayer)) map.removeLayer(darkTileLayer);
     if (!map.hasLayer(lightTileLayer)) lightTileLayer.addTo(map);
   } else {
     if (map.hasLayer(lightTileLayer)) map.removeLayer(lightTileLayer);
@@ -202,15 +202,15 @@ async function loadCities() {
 async function loadCity(lat, lon) {
   const sel = document.getElementById('city-select');
   let cityName = sel.value;
-  
+
   // If lat/lon provided (from geolocation), use those instead of selection
   const useManualCoord = (lat !== undefined && lon !== undefined);
-  
+
   if (!cityName && !useManualCoord) { showAlert('Please select a city first.'); return; }
 
   const cityObj = cities.find(c => c.name === cityName) || { lat, lon, zoom: 14 };
   if (!cityObj && !useManualCoord) return;
-  
+
   const finalLat = useManualCoord ? lat : cityObj.lat;
   const finalLon = useManualCoord ? lon : cityObj.lon;
   const finalCity = useManualCoord ? null : cityName; // Backend handles null by using lat/lon label
@@ -256,7 +256,7 @@ function startLoadPoll() {
         showAlert(`Load failed: ${s.load_error}`);
         hideLoadingUI();
       }
-    } catch (e) {}
+    } catch (e) { }
   }, 1200);
 }
 
@@ -412,10 +412,10 @@ async function renderFloodHeatmap() {
       maxZoom: 17,
       max: 1.0,
       gradient: {
-        0.0:  'transparent',
+        0.0: 'transparent',
         0.25: '#FFD600',   // moderate — yellow
         0.55: '#FF6D00',   // high — orange
-        1.0:  '#FF1744',   // critical — red
+        1.0: '#FF1744',   // critical — red
       },
       minOpacity: 0.35,
     }).addTo(map);
@@ -435,21 +435,21 @@ async function findRoute() {
   const routeBtn = document.getElementById('find-route-btn');
   routeBtn.disabled = true;
   routeBtn.innerHTML = '<span class="spinner-small"></span> Calculating safe route...';
-  
+
   // Show tooltip for feedback
   showTooltip('Analyzing terrain and flood risks...');
 
   // Clear old paths
-  if (safePathLayer)   { map.removeLayer(safePathLayer);   safePathLayer = null; }
+  if (safePathLayer) { map.removeLayer(safePathLayer); safePathLayer = null; }
   if (normalPathLayer) { map.removeLayer(normalPathLayer); normalPathLayer = null; }
 
   try {
-    const res  = await fetch(`${API}/api/route`, {
+    const res = await fetch(`${API}/api/route`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         origin_lat: originLatLng.lat, origin_lon: originLatLng.lng,
-        dest_lat:   destLatLng.lat,   dest_lon:   destLatLng.lng,
+        dest_lat: destLatLng.lat, dest_lon: destLatLng.lng,
       })
     });
 
@@ -508,8 +508,8 @@ function renderRouteResult(data) {
 
   if (!sp && !spErr) { el.classList.add('hidden'); return; }
 
-  const riskColors = { 0:'#00E5FF', 1:'#76FF03', 2:'#FFD600', 3:'#FF6D00', 4:'#FF1744' };
-  const riskNames  = { 0:'Safe', 1:'Low', 2:'Moderate', 3:'High', 4:'Critical' };
+  const riskColors = { 0: '#00E5FF', 1: '#76FF03', 2: '#FFD600', 3: '#FF6D00', 4: '#FF1744' };
+  const riskNames = { 0: 'Safe', 1: 'Low', 2: 'Moderate', 3: 'High', 4: 'Critical' };
 
   let safeHTML = spErr
     ? `<div style="color:#ff1744;font-size:12px">${spErr}</div>`
@@ -545,16 +545,16 @@ function renderRouteResult(data) {
 }
 
 function clearRoute() {
-  if (safePathLayer)   { map.removeLayer(safePathLayer);   safePathLayer = null; }
+  if (safePathLayer) { map.removeLayer(safePathLayer); safePathLayer = null; }
   if (normalPathLayer) { map.removeLayer(normalPathLayer); normalPathLayer = null; }
-  if (originMarker)    { map.removeLayer(originMarker);    originMarker = null; }
-  if (destMarker)      { map.removeLayer(destMarker);      destMarker = null; }
+  if (originMarker) { map.removeLayer(originMarker); originMarker = null; }
+  if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
   shelterMarkers.forEach(m => map.removeLayer(m));
   shelterMarkers = [];
   originLatLng = destLatLng = null;
   clickMode = 'origin';
   document.getElementById('origin-label').textContent = 'Not set';
-  document.getElementById('dest-label').textContent   = 'Not set';
+  document.getElementById('dest-label').textContent = 'Not set';
   document.getElementById('find-route-btn').disabled = true;
   document.getElementById('route-result').classList.add('hidden');
   showTooltip('Click anywhere to set your Origin point');
@@ -658,7 +658,7 @@ function renderWeatherPanel(data) {
     const h = (new Date().getHours() + i) % 24;
     const hStr = h < 10 ? `0${h}:00` : `${h}:00`;
     const heightPct = Math.max(2, (v / maxPrecip) * 100);
-    
+
     // Highlight first major spike in the next 12h
     if (!nextSpike && v > 2.0 && v > (cur.precipitation_mm + 0.5)) {
       nextSpike = { time: hStr, intensity: v > 8 ? 'Critical' : (v > 4 ? 'Heavy' : 'Moderate'), val: v };
@@ -667,7 +667,7 @@ function renderWeatherPanel(data) {
     // Color intensity based on mm
     const barColor = v > 10 ? '#FF1744' : (v > 5 ? '#FFD600' : '#1a73e8');
     const isSpike = nextSpike && nextSpike.time === hStr;
-    
+
     return `
       <div class="forecast-bar-item ${isSpike ? 'is-spike' : ''}">
         <div class="bar-value-tooltip">${v.toFixed(1)}mm</div>
@@ -839,7 +839,7 @@ function renderStatus(s) {
 }
 
 function setStatusUI(state, msg) {
-  const dot  = document.getElementById('status-dot');
+  const dot = document.getElementById('status-dot');
   const text = document.getElementById('status-text');
   dot.className = `status-dot ${state}`;
   text.textContent = msg;
@@ -848,7 +848,7 @@ function setStatusUI(state, msg) {
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function showPanel(name) {
   ['map', 'weather', 'assessment', 'simulation', 'news'].forEach(p => {
-    const btn   = document.getElementById(`nav-${p}`);
+    const btn = document.getElementById(`nav-${p}`);
     const panel = document.getElementById(`${p}-panel`);
     const isActive = p === name;
     btn?.classList.toggle('active', isActive);
@@ -856,10 +856,10 @@ function showPanel(name) {
   });
   // Hide sidebar & chips when switching away from map
   const sidebar = document.getElementById('sidebar');
-  const chips   = document.querySelector('.map-chips');
+  const chips = document.querySelector('.map-chips');
   const tooltip = document.getElementById('map-tooltip');
   if (sidebar) sidebar.classList.toggle('hidden', name !== 'map');
-  if (chips)   chips.classList.toggle('hidden', name !== 'map');
+  if (chips) chips.classList.toggle('hidden', name !== 'map');
   if (tooltip) tooltip.classList.add('hidden');
 
   if (name === 'map') { setTimeout(() => map?.invalidateSize(), 50); }
@@ -922,7 +922,7 @@ async function fetchDisasterAssessment() {
   if (!el) return;
   el.innerHTML = '<div class="assess-loading"><div class="spinner"></div><p style="margin-top:16px;color:var(--text-secondary)">Calculating disaster impact...</p></div>';
   try {
-    const res  = await fetch('/api/disaster-assessment');
+    const res = await fetch('/api/disaster-assessment');
     const data = await res.json();
     if (data.error) { el.innerHTML = '<div class="placeholder-text large">' + data.error + '</div>'; return; }
     renderAssessmentPanel(data);
@@ -935,40 +935,40 @@ function renderAssessmentPanel(d) {
   const el = document.getElementById('assessment-content');
   const tc = d.threat_color;
   const intensityPct = Math.round(d.flood_intensity * 100);
-  const fmt   = n => Number(n).toLocaleString('en-IN');
-  const fmtCr = n => n >= 1000 ? '\u20b9' + (n/100).toFixed(1) + 'K Cr' : '\u20b9' + n + ' Cr';
+  const fmt = n => Number(n).toLocaleString('en-IN');
+  const fmtCr = n => n >= 1000 ? '\u20b9' + (n / 100).toFixed(1) + 'K Cr' : '\u20b9' + n + ' Cr';
 
   const threatBg = {
     CATASTROPHIC: 'linear-gradient(135deg,#7b0000,#c62828)',
-    SEVERE:       'linear-gradient(135deg,#bf360c,#e64a19)',
-    MODERATE:     'linear-gradient(135deg,#e65100,#f57c00)',
-    LOW:          'linear-gradient(135deg,#33691e,#558b2f)',
-    MINIMAL:      'linear-gradient(135deg,#006064,#00838f)',
+    SEVERE: 'linear-gradient(135deg,#bf360c,#e64a19)',
+    MODERATE: 'linear-gradient(135deg,#e65100,#f57c00)',
+    LOW: 'linear-gradient(135deg,#33691e,#558b2f)',
+    MINIMAL: 'linear-gradient(135deg,#006064,#00838f)',
   }[d.threat_level] || 'linear-gradient(135deg,#1a73e8,#0d47a1)';
 
-  const threatIcon = {CATASTROPHIC:'&#128308;',SEVERE:'&#128992;',MODERATE:'&#128993;',LOW:'&#128994;',MINIMAL:'&#128309;'}[d.threat_level] || '&#9899;';
-  const maxDmg  = Math.max(d.property_damage.residential_cr, d.property_damage.commercial_cr, d.property_damage.infrastructure_cr, 1);
-  const resPct  = Math.round(d.property_damage.residential_cr    / maxDmg * 100);
-  const comPct  = Math.round(d.property_damage.commercial_cr     / maxDmg * 100);
+  const threatIcon = { CATASTROPHIC: '&#128308;', SEVERE: '&#128992;', MODERATE: '&#128993;', LOW: '&#128994;', MINIMAL: '&#128309;' }[d.threat_level] || '&#9899;';
+  const maxDmg = Math.max(d.property_damage.residential_cr, d.property_damage.commercial_cr, d.property_damage.infrastructure_cr, 1);
+  const resPct = Math.round(d.property_damage.residential_cr / maxDmg * 100);
+  const comPct = Math.round(d.property_damage.commercial_cr / maxDmg * 100);
   const infrPct = Math.round(d.property_damage.infrastructure_cr / maxDmg * 100);
   const roadPct = Math.min(100, d.infrastructure.high_risk_pct);
 
   const RECS = {
-    CATASTROPHIC: ['Initiate mass evacuation immediately','Deploy all emergency medical teams','Request aerial search & rescue support','Broadcast emergency alerts on all channels','Close all major roads and bridges'],
-    SEVERE:       ['Evacuate all flood-prone zones','Pre-position fire & rescue teams','Open all designated emergency shelters','Send cell-broadcast warning messages','Restrict non-essential traffic'],
-    MODERATE:     ['Issue public flood advisory','Prepare household emergency kits','Identify nearest shelter locations','Monitor water levels every 2 hours','Ensure backup power for critical infrastructure'],
-    LOW:          ['Monitor rainfall forecast hourly','Clear drains and gutters','Review emergency contact numbers','Keep emergency radio accessible'],
-    MINIMAL:      ['Conditions stable - routine monitoring active','Review and update flood preparedness plans'],
+    CATASTROPHIC: ['Initiate mass evacuation immediately', 'Deploy all emergency medical teams', 'Request aerial search & rescue support', 'Broadcast emergency alerts on all channels', 'Close all major roads and bridges'],
+    SEVERE: ['Evacuate all flood-prone zones', 'Pre-position fire & rescue teams', 'Open all designated emergency shelters', 'Send cell-broadcast warning messages', 'Restrict non-essential traffic'],
+    MODERATE: ['Issue public flood advisory', 'Prepare household emergency kits', 'Identify nearest shelter locations', 'Monitor water levels every 2 hours', 'Ensure backup power for critical infrastructure'],
+    LOW: ['Monitor rainfall forecast hourly', 'Clear drains and gutters', 'Review emergency contact numbers', 'Keep emergency radio accessible'],
+    MINIMAL: ['Conditions stable - routine monitoring active', 'Review and update flood preparedness plans'],
   }[d.threat_level] || [];
 
   const phases = [
-    {label:'Immediate Response', sub:'0 - 72 hours',   active:true},
-    {label:'Search & Rescue',    sub:'1 - 7 days',     active: d.flood_intensity > 0.1},
-    {label:'Relief & Rehab',     sub:'1 - 4 weeks',    active: d.flood_intensity > 0.25},
-    {label:'Full Recovery',      sub:'~' + d.recovery.estimated_days + ' days', active:false},
+    { label: 'Immediate Response', sub: '0 - 72 hours', active: true },
+    { label: 'Search & Rescue', sub: '1 - 7 days', active: d.flood_intensity > 0.1 },
+    { label: 'Relief & Rehab', sub: '1 - 4 weeks', active: d.flood_intensity > 0.25 },
+    { label: 'Full Recovery', sub: '~' + d.recovery.estimated_days + ' days', active: false },
   ];
 
-  const phasesHTML = phases.map((p,i) =>
+  const phasesHTML = phases.map((p, i) =>
     '<div class="assess-phase ' + (p.active ? 'phase-active' : '') + '">'
     + '<div class="assess-phase-dot"></div>'
     + '<div><div class="phase-label">' + p.label + '</div>'
@@ -977,15 +977,15 @@ function renderAssessmentPanel(d) {
   ).join('');
 
   const recsHTML = RECS.map((r, i) =>
-    '<div class="assess-rec" style="animation-delay:' + (i*0.08) + 's">'
-    + '<span class="rec-num">' + (i+1) + '</span>' + r + '</div>'
+    '<div class="assess-rec" style="animation-delay:' + (i * 0.08) + 's">'
+    + '<span class="rec-num">' + (i + 1) + '</span>' + r + '</div>'
   ).join('');
 
   const statCards = [
-    {icon:'&#128128;', num: fmt(d.fatalities.estimated_deaths),    label:'Estimated Deaths',          sub:'UN-HABITAT lethality rate applied',       color:'#FF1744'},
-    {icon:'&#127973;', num: fmt(d.fatalities.estimated_injured),   label:'Injured / Hospitalised',    sub:'~6x injury-to-fatality ratio (NDMA)',     color:'#FF6D00'},
-    {icon:'&#127957;', num: fmt(d.fatalities.estimated_displaced), label:'Displaced Persons',         sub:'Require emergency shelter & relief',       color:'#FFD600'},
-    {icon:'&#128101;', num: fmt(d.fatalities.total_affected),      label:'Total Exposed Population',  sub:'Within ' + d.area.affected_km2 + ' km\u00b2 flood zone', color:'#00E5FF'},
+    { icon: '&#128128;', num: fmt(d.fatalities.estimated_deaths), label: 'Estimated Deaths', sub: 'UN-HABITAT lethality rate applied', color: '#FF1744' },
+    { icon: '&#127973;', num: fmt(d.fatalities.estimated_injured), label: 'Injured / Hospitalised', sub: '~6x injury-to-fatality ratio (NDMA)', color: '#FF6D00' },
+    { icon: '&#127957;', num: fmt(d.fatalities.estimated_displaced), label: 'Displaced Persons', sub: 'Require emergency shelter & relief', color: '#FFD600' },
+    { icon: '&#128101;', num: fmt(d.fatalities.total_affected), label: 'Total Exposed Population', sub: 'Within ' + d.area.affected_km2 + ' km\u00b2 flood zone', color: '#00E5FF' },
   ].map(c =>
     '<div class="assess-stat-card" style="--ca:' + c.color + '">'
     + '<div class="asc-icon">' + c.icon + '</div>'
@@ -995,10 +995,10 @@ function renderAssessmentPanel(d) {
   ).join('');
 
   const infraCards = [
-    {val: d.infrastructure.roads_affected_km + ' km', lbl:'Roads Affected',    color:'#FF6D00'},
-    {val: d.infrastructure.critical_roads,             lbl:'Critical Segments', color:'#FF1744'},
-    {val: d.infrastructure.bridges_at_risk,            lbl:'Bridges at Risk',   color:'#FFD600'},
-    {val: d.infrastructure.high_risk_pct + '%',        lbl:'Network Impacted',  color:'#00E5FF'},
+    { val: d.infrastructure.roads_affected_km + ' km', lbl: 'Roads Affected', color: '#FF6D00' },
+    { val: d.infrastructure.critical_roads, lbl: 'Critical Segments', color: '#FF1744' },
+    { val: d.infrastructure.bridges_at_risk, lbl: 'Bridges at Risk', color: '#FFD600' },
+    { val: d.infrastructure.high_risk_pct + '%', lbl: 'Network Impacted', color: '#00E5FF' },
   ].map(c =>
     '<div class="assess-infra-card"><div class="aic-val" style="color:' + c.color + '">' + c.val + '</div>'
     + '<div class="aic-lbl">' + c.lbl + '</div></div>'
@@ -1008,33 +1008,33 @@ function renderAssessmentPanel(d) {
     // HERO
     '<div class="assess-hero">'
     + '<div class="assess-threat-badge" style="background:' + threatBg + '">'
-    +   '<div class="assess-threat-icon">' + threatIcon + '</div>'
-    +   '<div class="assess-threat-level">' + d.threat_level + '</div>'
-    +   '<div class="assess-threat-city">' + (d.city || '').split(',')[0] + '</div>'
-    +   '<div class="assess-threat-sub">Flood Intensity ' + intensityPct + '%</div>'
+    + '<div class="assess-threat-icon">' + threatIcon + '</div>'
+    + '<div class="assess-threat-level">' + d.threat_level + '</div>'
+    + '<div class="assess-threat-city">' + (d.city || '').split(',')[0] + '</div>'
+    + '<div class="assess-threat-sub">Flood Intensity ' + intensityPct + '%</div>'
     + '</div>'
     + '<div class="assess-gauge-wrap">'
-    +   '<svg viewBox="0 0 200 120" style="width:100%;max-width:260px">'
-    +     '<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="16" stroke-linecap="round"/>'
-    +     '<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="' + tc + '" stroke-width="16" stroke-linecap="round" stroke-dasharray="' + (d.flood_intensity * 251.2) + ' 251.2"/>'
-    +     '<text x="100" y="90"  text-anchor="middle" fill="' + tc + '" font-size="30" font-weight="800" font-family="Inter,sans-serif">' + intensityPct + '%</text>'
-    +     '<text x="100" y="112" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="9" font-family="Inter,sans-serif">FLOOD RISK INTENSITY</text>'
-    +   '</svg>'
-    +   '<div class="assess-gauge-pills">'
-    +     '<div class="assess-gpill"><span>' + d.area.affected_km2 + ' km\u00b2</span><label>Affected Area</label></div>'
-    +     '<div class="assess-gpill"><span>' + d.infrastructure.high_risk_pct + '%</span><label>Roads at Risk</label></div>'
-    +     '<div class="assess-gpill"><span>' + d.recovery.estimated_days + 'd</span><label>Recovery Est.</label></div>'
-    +   '</div>'
+    + '<svg viewBox="0 0 200 120" style="width:100%;max-width:260px">'
+    + '<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="16" stroke-linecap="round"/>'
+    + '<path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="' + tc + '" stroke-width="16" stroke-linecap="round" stroke-dasharray="' + (d.flood_intensity * 251.2) + ' 251.2"/>'
+    + '<text x="100" y="90"  text-anchor="middle" fill="' + tc + '" font-size="30" font-weight="800" font-family="Inter,sans-serif">' + intensityPct + '%</text>'
+    + '<text x="100" y="112" text-anchor="middle" fill="rgba(255,255,255,0.4)" font-size="9" font-family="Inter,sans-serif">FLOOD RISK INTENSITY</text>'
+    + '</svg>'
+    + '<div class="assess-gauge-pills">'
+    + '<div class="assess-gpill"><span>' + d.area.affected_km2 + ' km\u00b2</span><label>Affected Area</label></div>'
+    + '<div class="assess-gpill"><span>' + d.infrastructure.high_risk_pct + '%</span><label>Roads at Risk</label></div>'
+    + '<div class="assess-gpill"><span>' + d.recovery.estimated_days + 'd</span><label>Recovery Est.</label></div>'
+    + '</div>'
     + '</div>'
     + '<div class="assess-weather-snap">'
-    +   '<div class="assess-snap-title">&#9928; Live Conditions</div>'
-    +   '<div class="assess-snap-grid">'
-    +     '<div class="assess-snap-item">&#127783;<b>' + d.weather_snapshot.precipitation_mm + ' mm/hr</b><small>Rainfall</small></div>'
-    +     '<div class="assess-snap-item">&#128167;<b>' + d.weather_snapshot.precipitation_6h_mm + ' mm</b><small>6h Total</small></div>'
-    +     '<div class="assess-snap-item">&#128168;<b>' + d.weather_snapshot.wind_speed + ' km/h</b><small>Wind</small></div>'
-    +     '<div class="assess-snap-item">&#127777;<b>' + d.weather_snapshot.humidity + '%</b><small>Humidity</small></div>'
-    +   '</div>'
-    +   '<div class="assess-risk-pill" style="background:' + tc + '22;border:1px solid ' + tc + ';color:' + tc + '">Risk Level: ' + d.weather_snapshot.risk_level + '</div>'
+    + '<div class="assess-snap-title">&#9928; Live Conditions</div>'
+    + '<div class="assess-snap-grid">'
+    + '<div class="assess-snap-item">&#127783;<b>' + d.weather_snapshot.precipitation_mm + ' mm/hr</b><small>Rainfall</small></div>'
+    + '<div class="assess-snap-item">&#128167;<b>' + d.weather_snapshot.precipitation_6h_mm + ' mm</b><small>6h Total</small></div>'
+    + '<div class="assess-snap-item">&#128168;<b>' + d.weather_snapshot.wind_speed + ' km/h</b><small>Wind</small></div>'
+    + '<div class="assess-snap-item">&#127777;<b>' + d.weather_snapshot.humidity + '%</b><small>Humidity</small></div>'
+    + '</div>'
+    + '<div class="assess-risk-pill" style="background:' + tc + '22;border:1px solid ' + tc + ';color:' + tc + '">Risk Level: ' + d.weather_snapshot.risk_level + '</div>'
     + '</div>'
     + '</div>'
 
@@ -1045,37 +1045,37 @@ function renderAssessmentPanel(d) {
     // DAMAGE
     + '<div class="assess-section-title">&#127962; Property &amp; Economic Damage</div>'
     + '<div class="assess-dmg-layout">'
-    +   '<div class="assess-dmg-bars">'
-    +     '<div class="assess-bar-row"><div class="assess-bar-meta"><span>&#127968; Residential</span><b style="color:#FF6D00">' + fmtCr(d.property_damage.residential_cr) + '</b></div><div class="assess-bar-track"><div class="assess-bar-fill" style="width:' + resPct + '%;background:#FF6D00"></div></div></div>'
-    +     '<div class="assess-bar-row"><div class="assess-bar-meta"><span>&#127970; Commercial</span><b style="color:#FFD600">' + fmtCr(d.property_damage.commercial_cr) + '</b></div><div class="assess-bar-track"><div class="assess-bar-fill" style="width:' + comPct + '%;background:#FFD600"></div></div></div>'
-    +     '<div class="assess-bar-row"><div class="assess-bar-meta"><span>&#128739; Infrastructure</span><b style="color:#76FF03">' + fmtCr(d.property_damage.infrastructure_cr) + '</b></div><div class="assess-bar-track"><div class="assess-bar-fill" style="width:' + infrPct + '%;background:#76FF03"></div></div></div>'
-    +   '</div>'
-    +   '<div class="assess-dmg-total">'
-    +     '<div class="adt-label">Total Economic Loss</div>'
-    +     '<div class="adt-value" style="color:' + tc + '">' + fmtCr(d.property_damage.total_cr) + '</div>'
-    +     '<div class="adt-sub">Recovery Budget Needed</div>'
-    +     '<div class="adt-recovery">' + fmtCr(d.property_damage.recovery_cost_cr) + '</div>'
-    +     '<div class="adt-note">NDMA urban flood damage formula</div>'
-    +   '</div>'
+    + '<div class="assess-dmg-bars">'
+    + '<div class="assess-bar-row"><div class="assess-bar-meta"><span>&#127968; Residential</span><b style="color:#FF6D00">' + fmtCr(d.property_damage.residential_cr) + '</b></div><div class="assess-bar-track"><div class="assess-bar-fill" style="width:' + resPct + '%;background:#FF6D00"></div></div></div>'
+    + '<div class="assess-bar-row"><div class="assess-bar-meta"><span>&#127970; Commercial</span><b style="color:#FFD600">' + fmtCr(d.property_damage.commercial_cr) + '</b></div><div class="assess-bar-track"><div class="assess-bar-fill" style="width:' + comPct + '%;background:#FFD600"></div></div></div>'
+    + '<div class="assess-bar-row"><div class="assess-bar-meta"><span>&#128739; Infrastructure</span><b style="color:#76FF03">' + fmtCr(d.property_damage.infrastructure_cr) + '</b></div><div class="assess-bar-track"><div class="assess-bar-fill" style="width:' + infrPct + '%;background:#76FF03"></div></div></div>'
+    + '</div>'
+    + '<div class="assess-dmg-total">'
+    + '<div class="adt-label">Total Economic Loss</div>'
+    + '<div class="adt-value" style="color:' + tc + '">' + fmtCr(d.property_damage.total_cr) + '</div>'
+    + '<div class="adt-sub">Recovery Budget Needed</div>'
+    + '<div class="adt-recovery">' + fmtCr(d.property_damage.recovery_cost_cr) + '</div>'
+    + '<div class="adt-note">NDMA urban flood damage formula</div>'
+    + '</div>'
     + '</div>'
 
     // INFRASTRUCTURE
     + '<div class="assess-section-title">&#128739; Infrastructure Status</div>'
     + '<div class="assess-infra-grid">' + infraCards + '</div>'
     + '<div style="margin:0 0 28px">'
-    +   '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:7px"><span>Road Network at High Risk</span><span>' + d.infrastructure.high_risk_roads + ' / ' + d.infrastructure.total_roads + ' segments</span></div>'
-    +   '<div class="assess-bar-track" style="height:10px;border-radius:6px"><div class="assess-bar-fill" style="width:' + roadPct + '%;background:linear-gradient(90deg,#FFD600,#FF6D00,#FF1744);border-radius:6px;height:10px"></div></div>'
+    + '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:7px"><span>Road Network at High Risk</span><span>' + d.infrastructure.high_risk_roads + ' / ' + d.infrastructure.total_roads + ' segments</span></div>'
+    + '<div class="assess-bar-track" style="height:10px;border-radius:6px"><div class="assess-bar-fill" style="width:' + roadPct + '%;background:linear-gradient(90deg,#FFD600,#FF6D00,#FF1744);border-radius:6px;height:10px"></div></div>'
     + '</div>'
 
     // RECOVERY
     + '<div class="assess-section-title">&#128260; Recovery Timeline</div>'
     + '<div class="assess-recovery-wrap">'
-    +   '<div class="assess-timeline">' + phasesHTML + '</div>'
-    +   '<div class="assess-rc-box">'
-    +     '<div class="adt-label">Recovery Cost</div>'
-    +     '<div class="adt-value" style="color:' + tc + '">' + fmtCr(d.recovery.recovery_cost_cr) + '</div>'
-    +     '<div class="adt-note">' + d.recovery.estimated_days + ' days to full restoration</div>'
-    +   '</div>'
+    + '<div class="assess-timeline">' + phasesHTML + '</div>'
+    + '<div class="assess-rc-box">'
+    + '<div class="adt-label">Recovery Cost</div>'
+    + '<div class="adt-value" style="color:' + tc + '">' + fmtCr(d.recovery.recovery_cost_cr) + '</div>'
+    + '<div class="adt-note">' + d.recovery.estimated_days + ' days to full restoration</div>'
+    + '</div>'
     + '</div>'
 
     // RECS
@@ -1083,8 +1083,8 @@ function renderAssessmentPanel(d) {
     + '<div class="assess-recs">' + recsHTML + '</div>'
 
     + '<div class="assess-footer">'
-    +   '<span>&#9888; Projections based on live weather + road network analysis (NDMA / UN-HABITAT methodology).</span>'
-    +   '<span>Updated: ' + new Date().toLocaleTimeString() + '</span>'
+    + '<span>&#9888; Projections based on live weather + road network analysis (NDMA / UN-HABITAT methodology).</span>'
+    + '<span>Updated: ' + new Date().toLocaleTimeString() + '</span>'
     + '</div>';
 }
 
@@ -1112,8 +1112,8 @@ function haversine(lat1, lon1, lat2, lon2) {
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lon2 - lon1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -1121,7 +1121,7 @@ function haversine(lat1, lon1, lat2, lon2) {
 /**
  * Triggers the automatic evacuation protocol
  */
-window.simulateFlood = function(detected) {
+window.simulateFlood = function (detected) {
   isFloodDetected = detected;
   if (isFloodDetected) {
     const msg = "Flood event detected! Activating evacuation protocol. Please listen for safety instructions.";
@@ -1143,7 +1143,7 @@ async function initiateEvacuation() {
   }
 
   showTooltip("Routing to nearest safe shelter within 1 km");
-  
+
   // 1. Filter: Within 1km AND status is Open
   const candidates = EMERGENCY_SHELTERS.filter(s => {
     const dist = haversine(loc.lat, loc.lng, s.lat, s.lon);
@@ -1151,8 +1151,8 @@ async function initiateEvacuation() {
   });
 
   // If no candidates within 1km, fall back to any open shelter sorted by proximity/safety
-  const availableShelters = candidates.length > 0 
-    ? candidates 
+  const availableShelters = candidates.length > 0
+    ? candidates
     : EMERGENCY_SHELTERS.filter(s => s.status === "open");
 
   if (availableShelters.length === 0) {
@@ -1165,10 +1165,10 @@ async function initiateEvacuation() {
   availableShelters.sort((a, b) => {
     const distA = haversine(loc.lat, loc.lng, a.lat, a.lon);
     const distB = haversine(loc.lat, loc.lng, b.lat, b.lon);
-    
+
     const scoreA = (distA * 10) - (a.elevation * 0.5);
     const scoreB = (distB * 10) - (b.elevation * 0.5);
-    
+
     return scoreA - scoreB;
   });
 
@@ -1189,7 +1189,7 @@ async function initiateEvacuation() {
     `);
 
   document.getElementById('dest-label').textContent = best.name;
-  
+
   // 3. Automatically trigger routing
   setTimeout(() => {
     speak(`Shelter found: ${best.name}. It is at an elevation of ${best.elevation} meters. Calculating safest path now.`);
@@ -1245,14 +1245,14 @@ function renderNewsPanel(articles) {
       
       <div class="news-grid">
         ${articles.map(a => {
-          const date = a.publishedAt ? new Date(a.publishedAt).toLocaleDateString() : 'Recent';
-          const title = a.title || 'Untitled';
-          const source = a.source?.name || 'News';
-          const url = a.url || '#';
-          const image = a.urlToImage || 'https://images.unsplash.com/photo-1454165833767-12868a59966c?auto=format&fit=crop&q=80&w=300&h=200';
-          const desc = a.description ? a.description.substring(0, 100) + '...' : 'Click to read the full report on this disaster event.';
-          
-          return `
+    const date = a.publishedAt ? new Date(a.publishedAt).toLocaleDateString() : 'Recent';
+    const title = a.title || 'Untitled';
+    const source = a.source?.name || 'News';
+    const url = a.url || '#';
+    const image = a.urlToImage || 'https://images.unsplash.com/photo-1454165833767-12868a59966c?auto=format&fit=crop&q=80&w=300&h=200';
+    const desc = a.description ? a.description.substring(0, 100) + '...' : 'Click to read the full report on this disaster event.';
+
+    return `
             <div class="news-card news-card--image" onclick="window.open('${url}', '_blank')">
               <div class="news-card-img" style="background-image: url('${image}')"></div>
               <div class="news-card-content">
@@ -1267,7 +1267,7 @@ function renderNewsPanel(articles) {
               </div>
             </div>
           `;
-        }).join('')}
+  }).join('')}
       </div>
     </div>
   `;
@@ -1298,7 +1298,7 @@ function toggleAuthForm(mode) {
   const loginForm = document.getElementById('login-form');
   const signupForm = document.getElementById('signup-form');
   const title = document.getElementById('modal-title');
-  
+
   if (mode === 'signup') {
     if (loginForm) loginForm.classList.add('hidden');
     if (signupForm) signupForm.classList.remove('hidden');
@@ -1315,7 +1315,7 @@ async function handleLogin(e) {
   if (!supabaseClient) { showAlert('Auth system unavailable'); return; }
   const email = document.getElementById('login-email').value;
   const password = document.getElementById('login-password').value;
-  
+
   const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
     showAlert('Login failed: ' + error.message);
@@ -1331,12 +1331,12 @@ async function handleSignup(e) {
   const name = document.getElementById('signup-name').value;
   const email = document.getElementById('signup-email').value;
   const password = document.getElementById('signup-password').value;
-  
+
   const { data, error } = await supabaseClient.auth.signUp({
     email, password,
     options: { data: { full_name: name } }
   });
-  
+
   if (error) {
     showAlert('Signup failed: ' + error.message);
   } else {
@@ -1358,16 +1358,16 @@ async function handleLogout() {
 function updateAuthUI(user) {
   const btn = document.getElementById('auth-btn');
   if (btn) btn.textContent = 'Profile';
-  
+
   const forms = document.getElementById('auth-forms');
   if (forms) forms.classList.add('hidden');
-  
+
   const section = document.getElementById('profile-section');
   if (section) section.classList.remove('hidden');
-  
+
   const emailDisplay = document.getElementById('user-email-display');
   if (emailDisplay) emailDisplay.textContent = user.email;
-  
+
   const title = document.getElementById('modal-title');
   if (title) title.textContent = 'Your Profile';
 }
@@ -1379,16 +1379,16 @@ async function fetchUserProfile(userId) {
     .select('*')
     .eq('id', userId)
     .single();
-    
+
   if (data) {
     userProfile = data;
     const ageInput = document.getElementById('profile-age');
     const disabilitySelect = document.getElementById('profile-disability');
     const voiceToggle = document.getElementById('voice-assistant-toggle');
-    
+
     if (ageInput) ageInput.value = data.age || '';
     if (disabilitySelect) disabilitySelect.value = data.disability_type || 'none';
-    
+
     // Auto-enable voice if blind
     if (data.disability_type === 'blind') {
       if (voiceToggle) voiceToggle.checked = true;
@@ -1405,7 +1405,7 @@ async function updateProfile(e) {
   const disability = document.getElementById('profile-disability').value;
   const voiceToggle = document.getElementById('voice-assistant-toggle');
   if (voiceToggle) voiceEnabled = voiceToggle.checked;
-  
+
   const { data: { user } } = await supabaseClient.auth.getUser();
   if (!user) return;
 
@@ -1417,15 +1417,15 @@ async function updateProfile(e) {
       disability_type: disability,
       updated_at: new Date()
     });
-    
+
   if (error) {
     showAlert('Profile update failed: ' + error.message);
   } else {
     showAlert('Profile updated successfully!');
     userProfile = { age, disability_type: disability };
     if (disability === 'blind' && !voiceEnabled) {
-       if (voiceToggle) voiceToggle.checked = true;
-       voiceEnabled = true;
+      if (voiceToggle) voiceToggle.checked = true;
+      voiceEnabled = true;
     }
     closeAuthModal();
   }
@@ -1563,16 +1563,16 @@ document.addEventListener('keydown', (e) => {
 
 async function processVoiceCommand(cmd) {
   console.log("Voice Command:", cmd);
-  
+
   if (cmd.includes('risk') || cmd.includes('flood') || cmd.includes('status')) {
     const statusText = document.getElementById('status-text').textContent;
     const riskChip = document.getElementById('chip-risk').textContent;
     speak(`System status is: ${statusText}. ${riskChip}`);
-  } 
+  }
   else if (cmd.includes('shelter') || cmd.includes('safe')) {
     speak("Searching for the nearest safe shelter for your location.");
     findNearestShelter();
-  } 
+  }
   else if (cmd.includes('weather') || cmd.includes('rain')) {
     const weatherText = document.getElementById('weather-content').innerText;
     if (weatherText.includes('Load a city')) {
@@ -1580,7 +1580,7 @@ async function processVoiceCommand(cmd) {
     } else {
       speak("Current weather summary: " + weatherText.replace('\n', '. '));
     }
-  } 
+  }
   else if (cmd.includes('route') || cmd.includes('navigation') || cmd.includes('path')) {
     const result = document.getElementById('route-result');
     if (result && !result.classList.contains('hidden')) {
@@ -1588,7 +1588,7 @@ async function processVoiceCommand(cmd) {
     } else {
       speak("No route has been calculated yet. Please set your destination or ask to find a shelter.");
     }
-  } 
+  }
   else if (cmd.includes('city') || cmd.includes('location') || cmd.includes('where')) {
     const city = document.getElementById('chip-city').textContent;
     speak("Your current " + city);
@@ -1600,5 +1600,81 @@ async function processVoiceCommand(cmd) {
     // Fallback to AI for any unrecognized command
     speak("Let me think about that.");
     await askAI(cmd, true);
+  }
+}
+// ── AI Chat Assistant Logic ──────────────────────────────────────────────────
+function toggleChat() {
+  const panel = document.getElementById('ai-chat-panel');
+  chatOpen = !chatOpen;
+  panel.classList.toggle('hidden', !chatOpen);
+  if (chatOpen) document.getElementById('chat-input')?.focus();
+}
+
+async function handleChatSubmit(e) {
+  e.preventDefault();
+  const input = document.getElementById('chat-input');
+  const query = input.value.trim();
+  if (!query) return;
+  input.value = '';
+  appendMessage('user', query);
+  await askAI(query);
+}
+
+async function askAI(query, isVoice = false) {
+  setChatLoading(true);
+
+  // Build a flood-aware system context
+  const statusText = document.getElementById('status-text')?.textContent || '';
+  const riskChip   = document.getElementById('chip-risk')?.textContent || '';
+  const systemCtx  = `You are FloodNav AI, a disaster management assistant. 
+Current system status: ${statusText}. ${riskChip}. 
+Help users with flood safety, evacuation routes, shelter finding, and emergency preparedness. 
+Be concise and calm. Answer in 2-3 sentences max unless detail is critical.`;
+
+  // Combine context and query for the backend
+  const fullQuery = `${systemCtx}\n\nUser: ${query}`;
+
+  try {
+    const res = await fetch("http://localhost:3000/ask-ai", {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: fullQuery })
+    });
+
+    const data = await res.json();
+    setChatLoading(false);
+
+    if (data?.candidates?.[0]?.content?.parts?.[0]?.text) {
+      const answer = data.candidates[0].content.parts[0].text;
+      appendMessage('assistant', answer);
+      if (isVoice && voiceEnabled) speak(answer);
+    } else if (data?.error) {
+      appendMessage('assistant', `Gemini error: ${data.error.message}`);
+    } else {
+      appendMessage('assistant', "I couldn't get a response. Please try again.");
+    }
+  } catch (e) {
+    setChatLoading(false);
+    console.error('Gemini Chat Error:', e);
+    appendMessage('assistant', "Connection error. Check your API key or network.");
+  }
+}
+
+function appendMessage(role, text) {
+  const container = document.getElementById('chat-messages');
+  if (!container) return;
+  const bubble = document.createElement('div');
+  bubble.className = `chat-bubble chat-bubble--${role}`;
+  bubble.textContent = text;
+  container.appendChild(bubble);
+  container.scrollTop = container.scrollHeight;
+}
+
+function setChatLoading(isLoading) {
+  const typing = document.getElementById('chat-typing');
+  if (typing) typing.classList.toggle('hidden', !isLoading);
+  if (isLoading) {
+    const container = document.getElementById('chat-messages');
+    if (container) container.scrollTop = container.scrollHeight;
   }
 }

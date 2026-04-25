@@ -12,8 +12,12 @@ Endpoints:
 """
 
 import logging
+import os
+from dotenv import load_dotenv
+load_dotenv() # Load variables from .env
 import threading
 import time
+import requests
 from flask import Flask, jsonify, request, send_from_directory, abort
 from flask_cors import CORS
 
@@ -411,7 +415,6 @@ def api_disaster_news():
     """
     Proxies filtered disaster news from NewsAPI.
     """
-    import requests
     try:
         api_key = "a727f4eeb63f430b8010e0e22b015249"
         # Stricter query for natural disasters, excluding common false positives
@@ -441,10 +444,10 @@ def api_disaster_news():
 
 
 # ── Gemini AI Assistant ──────────────────────────────────────────────────────
-GEMINI_API_KEY = "AIzaSyCJ_b_lHHQ3n8ODvN42YfoHxr5GOwhzIDU"
+GEMINI_API_KEY = os.getenv("gemini_api_key")
 GEMINI_URL = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
-    "gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY
+    "gemini-2.0-flash:generateContent?key=" + (GEMINI_API_KEY or "")
 )
 
 
@@ -533,4 +536,4 @@ INSTRUCTIONS:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
+    app.run(host="0.0.0.0", port=5000, debug=True, threaded=True)
