@@ -903,7 +903,8 @@ function showAlert(msg) {
 }
 
 function closeAlert() {
-  document.getElementById('alert-banner').classList.add('hidden');
+  const banner = document.getElementById('alert-banner');
+  if (banner) banner.classList.add('hidden');
 }
 
 function getRiskColor(score) {
@@ -1372,6 +1373,7 @@ function updateAuthUI(user) {
 }
 
 async function fetchUserProfile(userId) {
+  if (!supabaseClient) return;
   const { data, error } = await supabaseClient
     .from('profiles')
     .select('*')
@@ -1405,6 +1407,8 @@ async function updateProfile(e) {
   if (voiceToggle) voiceEnabled = voiceToggle.checked;
   
   const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) return;
+
   const { error } = await supabaseClient
     .from('profiles')
     .upsert({
@@ -1424,5 +1428,97 @@ async function updateProfile(e) {
        voiceEnabled = true;
     }
     closeAuthModal();
+  }
+}
+
+// ── Voice Control (Speech Recognition) ───────────────────────────────────
+let recognition = null;
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  recognition.onstart = () => {
+    document.getElementById('voice-command-btn').innerHTML = '<span>👂 Listening...</span>';
+    speak("Listening for your command.");
+  };
+
+  recognition.onresult = (event) => {
+    const command = event.results[0][0].transcript.toLowerCase();
+    document.getElementById('voice-command-btn').innerHTML = '🎤 Voice Commands';
+    processVoiceCommand(command);
+  };
+
+  recognition.onerror = (event) => {
+    console.error('Speech recognition error:', event.error);
+    document.getElementById('voice-command-btn').innerHTML = '🎤 Voice Commands';
+    if (event.error === 'not-allowed') {
+      showAlert("Microphone access denied. Please enable it in browser settings.");
+    }
+  };
+
+  recognition.onend = () => {
+    document.getElementById('voice-command-btn').innerHTML = '🎤 Voice Commands';
+  };
+}
+
+function startVoiceRecognition() {
+  if (!recognition) {
+    showAlert("Speech recognition not supported in this browser.");
+    return;
+  }
+  try {
+    recognition.start();
+  } catch (e) {
+    console.log("Recognition already started or error:", e);
+  }
+}
+
+// Global shortcut: Press 'v' to start voice recognition
+document.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'v' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+    startVoiceRecognition();
+  }
+});
+
+async function processVoiceCommand(cmd) {
+  console.log("Voice Command:", cmd);
+  
+  if (cmd.includes('risk') || cmd.includes('flood') || cmd.includes('status')) {
+    const statusText = document.getElementById('status-text').textContent;
+    const riskChip = document.getElementById('chip-risk').textContent;
+    speak(`System status is: ${statusText}. ${riskChip}`);
+  } 
+  else if (cmd.includes('shelter') || cmd.includes('safe')) {
+    speak("Searching for the nearest safe shelter for your location.");
+    findNearestShelter();
+  } 
+  else if (cmd.includes('weather') || cmd.includes('rain')) {
+    const weatherText = document.getElementById('weather-content').innerText;
+    if (weatherText.includes('Load a city')) {
+      speak("Please load a city first to get weather information.");
+    } else {
+      speak("Current weather summary: " + weatherText.replace('\n', '. '));
+    }
+  } 
+  else if (cmd.includes('route') || cmd.includes('navigation') || cmd.includes('path')) {
+    const result = document.getElementById('route-result');
+    if (result && !result.classList.contains('hidden')) {
+      speak("Route analysis: " + result.innerText.replace('\n', '. '));
+    } else {
+      speak("No route has been calculated yet. Please set your destination or ask to find a shelter.");
+    }
+  } 
+  else if (cmd.includes('city') || cmd.includes('location') || cmd.includes('where')) {
+    const city = document.getElementById('chip-city').textContent;
+    speak("Your current " + city);
+  }
+  else if (cmd.includes('help') || cmd.includes('command')) {
+    speak("You can ask about flood risk, find shelters, get weather updates, or hear route information. Just say 'risk', 'find shelter', 'weather', or 'route'.");
+  }
+  else {
+    speak(`I heard: ${cmd}. I'm not sure how to help with that yet. Say 'help' for a list of commands.`);
   }
 }
