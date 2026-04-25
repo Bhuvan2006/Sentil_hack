@@ -320,6 +320,35 @@
     </div>
   </div>
 
+  <!-- ══════════════════ AI CHAT WIDGET ══════════════════ -->
+  <div class="ai-chat-panel hidden" id="ai-chat-panel">
+    <div class="ai-chat-header">
+      <div class="ai-chat-title">
+        <span class="ai-chat-avatar">🤖</span>
+        <span>FloodNav AI Assistant</span>
+      </div>
+      <button class="ai-chat-close" onclick="toggleChat()">✕</button>
+    </div>
+    <div class="ai-chat-messages" id="chat-messages">
+      <div class="chat-bubble chat-bubble--assistant">
+        Hello! I'm your FloodNav AI assistant. Ask me anything about flood safety, current conditions, or general emergency advice.
+      </div>
+    </div>
+    <div class="chat-typing hidden" id="chat-typing">
+      <span></span><span></span><span></span>
+    </div>
+    <form class="ai-chat-input-wrap" onsubmit="handleChatSubmit(event)">
+      <input type="text" id="chat-input" class="ai-chat-input" placeholder="Ask me anything..." autocomplete="off">
+      <button type="button" class="ai-chat-voice" id="chat-voice-btn" onclick="startVoiceRecognition()" title="Voice input">🎤</button>
+      <button type="submit" class="ai-chat-send" title="Send">➤</button>
+    </form>
+  </div>
+
+  <!-- Floating AI Chat Button -->
+  <button class="ai-chat-float-btn" id="ai-chat-float-btn" onclick="toggleChat()" title="Ask AI Assistant">
+    <span>🤖</span>
+  </button>
+
   <!-- ══════════════════ ALERT BANNER ══════════════════ -->
   <div class="alert-banner hidden" id="alert-banner">
     <span class="alert-icon">!</span>

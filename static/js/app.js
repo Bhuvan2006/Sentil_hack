@@ -1431,6 +1431,72 @@ async function updateProfile(e) {
   }
 }
 
+// ── AI Chat Widget ──────────────────────────────────────────────────────────
+let chatOpen = false;
+let chatHistory = [];
+
+function toggleChat() {
+  const panel = document.getElementById('ai-chat-panel');
+  chatOpen = !chatOpen;
+  panel.classList.toggle('hidden', !chatOpen);
+  if (chatOpen) {
+    document.getElementById('chat-input').focus();
+  }
+}
+
+function addChatMessage(text, sender = 'user') {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = `chat-bubble chat-bubble--${sender}`;
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function setChatTyping(show) {
+  const indicator = document.getElementById('chat-typing');
+  indicator.classList.toggle('hidden', !show);
+  const container = document.getElementById('chat-messages');
+  container.scrollTop = container.scrollHeight;
+}
+
+async function askAI(query, speakResponse = true) {
+  if (!query.trim()) return;
+  addChatMessage(query, 'user');
+  setChatTyping(true);
+
+  try {
+    const res = await fetch(`${API}/api/ask-ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query.trim() })
+    });
+    const data = await res.json();
+    setChatTyping(false);
+
+    if (data.success) {
+      addChatMessage(data.answer, 'assistant');
+      if (speakResponse && voiceEnabled) {
+        speak(data.answer);
+      }
+    } else {
+      addChatMessage("Sorry, I couldn't process that request.", 'assistant');
+    }
+  } catch (e) {
+    setChatTyping(false);
+    addChatMessage("Connection error. Please try again.", 'assistant');
+  }
+}
+
+function handleChatSubmit(e) {
+  e.preventDefault();
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  askAI(text, voiceEnabled);
+}
+
 // ── Voice Control (Speech Recognition) ───────────────────────────────────
 let recognition = null;
 if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
@@ -1441,26 +1507,38 @@ if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
   recognition.lang = 'en-US';
 
   recognition.onstart = () => {
-    document.getElementById('voice-command-btn').innerHTML = '<span>👂 Listening...</span>';
+    const btn = document.getElementById('voice-command-btn');
+    if (btn) btn.innerHTML = '<span>👂 Listening...</span>';
+    const chatBtn = document.getElementById('chat-voice-btn');
+    if (chatBtn) chatBtn.textContent = '👂';
     speak("Listening for your command.");
   };
 
   recognition.onresult = (event) => {
     const command = event.results[0][0].transcript.toLowerCase();
-    document.getElementById('voice-command-btn').innerHTML = '🎤 Voice Commands';
+    const btn = document.getElementById('voice-command-btn');
+    if (btn) btn.innerHTML = '🎤 Voice Commands';
+    const chatBtn = document.getElementById('chat-voice-btn');
+    if (chatBtn) chatBtn.textContent = '🎤';
     processVoiceCommand(command);
   };
 
   recognition.onerror = (event) => {
     console.error('Speech recognition error:', event.error);
-    document.getElementById('voice-command-btn').innerHTML = '🎤 Voice Commands';
+    const btn = document.getElementById('voice-command-btn');
+    if (btn) btn.innerHTML = '🎤 Voice Commands';
+    const chatBtn = document.getElementById('chat-voice-btn');
+    if (chatBtn) chatBtn.textContent = '🎤';
     if (event.error === 'not-allowed') {
       showAlert("Microphone access denied. Please enable it in browser settings.");
     }
   };
 
   recognition.onend = () => {
-    document.getElementById('voice-command-btn').innerHTML = '🎤 Voice Commands';
+    const btn = document.getElementById('voice-command-btn');
+    if (btn) btn.innerHTML = '🎤 Voice Commands';
+    const chatBtn = document.getElementById('chat-voice-btn');
+    if (chatBtn) chatBtn.textContent = '🎤';
   };
 }
 
@@ -1516,9 +1594,11 @@ async function processVoiceCommand(cmd) {
     speak("Your current " + city);
   }
   else if (cmd.includes('help') || cmd.includes('command')) {
-    speak("You can ask about flood risk, find shelters, get weather updates, or hear route information. Just say 'risk', 'find shelter', 'weather', or 'route'.");
+    speak("You can ask about flood risk, find shelters, get weather updates, or hear route information. Just say 'risk', 'find shelter', 'weather', or 'route'. You can also ask me anything else and I'll use my AI knowledge to help.");
   }
   else {
-    speak(`I heard: ${cmd}. I'm not sure how to help with that yet. Say 'help' for a list of commands.`);
+    // Fallback to AI for any unrecognized command
+    speak("Let me think about that.");
+    await askAI(cmd, true);
   }
 }

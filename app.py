@@ -440,6 +440,97 @@ def api_disaster_news():
         return jsonify({"success": False, "error": str(e)}), 502
 
 
+# ── Gemini AI Assistant ──────────────────────────────────────────────────────
+GEMINI_API_KEY = "AIzaSyCJ_b_lHHQ3n8ODvN42YfoHxr5GOwhzIDU"
+GEMINI_URL = (
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY
+)
+
+
+def _gemini_ask(system_prompt: str, user_query: str) -> str:
+    """Call Google Gemini API and return the text response."""
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": f"{system_prompt}\n\nUser question: {user_query}"}
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.7,
+            "maxOutputTokens": 1024,
+            "topP": 0.95,
+            "topK": 40
+        }
+    }
+    try:
+        r = requests.post(GEMINI_URL, json=payload, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            return "I'm sorry, I couldn't generate a response right now."
+        parts = candidates[0].get("content", {}).get("parts", [])
+        return " ".join(p.get("text", "") for p in parts).strip()
+    except Exception as e:
+        logger.error(f"Gemini API error: {e}")
+        return "I'm having trouble connecting to my knowledge base. Please try again shortly."
+
+
+@app.route("/api/ask-ai", methods=["POST"])
+def api_ask_ai():
+    """
+    AI-powered assistant endpoint.
+    Accepts: { "query": str, "context": {...} }
+    Returns: { "success": bool, "answer": str }
+    """
+    body = request.get_json(silent=True) or {}
+    user_query = body.get("query", "").strip()
+    if not user_query:
+        return jsonify({"success": False, "error": "Query is required"}), 400
+
+    with _lock:
+        city = _state["city"] or "Unknown"
+        rainfall = _state["rainfall_score"]
+        weather = _state["weather"]
+        risk_level = weather.get("current", {}).get("risk_level", "N/A")
+        precip = weather.get("current", {}).get("precipitation_mm", 0)
+        wind = weather.get("current", {}).get("wind_speed", 0)
+        humidity = weather.get("current", {}).get("humidity", 0)
+        temp = weather.get("current", {}).get("temperature", 0)
+        graph_loaded = _state["graph"] is not None
+        loading = _state["loading"]
+
+    system_prompt = f"""You are FloodNav AI, an intelligent emergency assistant for a flood-aware navigation web application.
+Your job is to help users stay safe during floods by answering questions using the LIVE data below.
+
+CURRENT SITE CONTEXT:
+- Loaded city: {city}
+- Flood risk level: {risk_level}
+- Rainfall score (0-1): {rainfall:.3f}
+- Current precipitation: {precip} mm/hr
+- Wind speed: {wind} km/h
+- Humidity: {humidity}%
+- Temperature: {temp}°C
+- Map loaded: {"Yes" if graph_loaded else "No"}
+- System loading: {"Yes" if loading else "No"}
+
+INSTRUCTIONS:
+- Be concise, helpful, and safety-focused.
+- If the user asks about flood risk, routes, shelters, or weather, use the live context above.
+- If the user asks general knowledge questions (e.g., "What causes floods?", "How to prepare an emergency kit?", "What is the NDMA?"), answer expertly.
+- If the user asks something unrelated, politely steer back to flood safety and navigation.
+- Keep responses under 150 words when possible.
+- Use a calm, authoritative tone suitable for emergency situations.
+"""
+
+    answer = _gemini_ask(system_prompt, user_query)
+    return jsonify({"success": True, "answer": answer})
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)
